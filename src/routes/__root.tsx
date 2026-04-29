@@ -1,4 +1,4 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
 import { BottomNav } from "@/components/BottomNav";
 
 import appCss from "../styles.css?url";
@@ -52,13 +52,11 @@ export const Route = createRootRoute({
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id" suppressHydrationWarning>
+    <html lang="id">
       <head>
-        <HeadContent />
       </head>
-      <body suppressHydrationWarning>
+      <body>
         {children}
-        <Scripts />
       </body>
     </html>
   );

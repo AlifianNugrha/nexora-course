@@ -49,11 +49,12 @@ Aplikasi akan berjalan di `http://localhost:3000` (atau port lain yang muncul di
 
 ## 🚢 Deployment ke Vercel
 
-Proyek ini siap dideploy ke Vercel. Pastikan Anda:
+Proyek ini dideploy sebagai **Single Page Application (SPA)**. Pastikan Anda:
 1. Menambahkan environment variables di dashboard Vercel.
-2. Menggunakan preset TanStack Start atau Vite.
-3. Build command: `npm run build`.
-4. Output directory: `dist/client`.
+2. Framework Preset: **Vite**.
+3. Build command: **npm run build**.
+4. Output directory: **dist**.
+5. Pastikan file `vercel.json` ada di root untuk menangani routing.
 
 ---
 Dibuat dengan ❤️ oleh Nexora Team.
