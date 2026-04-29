@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const isValidUUID = (id: string) => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(id);
 };
 
@@ -31,15 +31,35 @@ export async function fetchCourses() {
 }
 
 export async function fetchCourseById(id: string) {
-  if (!isValidUUID(id)) return null;
+  if (!isValidUUID(id)) {
+    console.error("Invalid UUID:", id);
+    return null;
+  }
 
+  // Try with categories join first
   const { data, error } = await supabase
     .from("courses")
     .select("*, categories(*)")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (error) return null;
+  if (error) {
+    console.error("Error fetching course (with join):", error);
+    // Fallback: try without join
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("courses")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    
+    if (fallbackError || !fallback) {
+      console.error("Error fetching course (fallback):", fallbackError);
+      return null;
+    }
+    return { ...fallback, category: "Uncategorized" };
+  }
+  
+  if (!data) return null;
   
   return {
     ...data,

@@ -1,7 +1,5 @@
-import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, useMatch } from "@tanstack/react-router";
 import { BottomNav } from "@/components/BottomNav";
-
-import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
@@ -28,39 +26,13 @@ function NotFoundComponent() {
 export const Route = createRootRoute({
   head: () => ({
     meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Belajar Bareng Nexora — Platform Belajar Online" },
-      { name: "description", content: "Belajar Bareng Nexora — Platform belajar tech online untuk semua. Front End, Back End, Mobile Dev, UI/UX, dan DevOps." },
-      { name: "author", content: "Nexora" },
-      { property: "og:title", content: "Belajar Bareng Nexora" },
-      { property: "og:description", content: "Platform belajar tech online untuk semua." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { name: "description", content: "Belajar Bareng Nexora — Platform belajar tech online untuk semua." },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
-
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="id">
-      <head>
-      </head>
-      <body>
-        {children}
-      </body>
-    </html>
-  );
-}
 
 function RootComponent() {
   return (

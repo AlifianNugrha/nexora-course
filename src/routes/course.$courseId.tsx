@@ -1,5 +1,5 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -7,44 +7,6 @@ import { GateForm } from "@/components/GateForm";
 import { fetchCourseById, fetchSchedulesByCourse } from "@/hooks/use-supabase";
 
 export const Route = createFileRoute("/course/$courseId")({
-  loader: async ({ params }) => {
-    const course = await fetchCourseById(params.courseId);
-    if (!course) throw notFound();
-    const schedules = await fetchSchedulesByCourse(params.courseId);
-    return { course, schedules };
-  },
-  head: ({ loaderData }) => {
-    const c = loaderData?.course;
-    return {
-      meta: c
-        ? [
-            { title: `${c.title} — Belajar Bareng Nexora` },
-            { name: "description", content: c.description },
-            { property: "og:title", content: c.title },
-            { property: "og:description", content: c.description },
-            { property: "og:image", content: c.thumbnail },
-          ]
-        : [{ title: "Course — Belajar Bareng Nexora" }],
-    };
-  },
-  notFoundComponent: () => (
-    <div className="flex min-h-screen flex-col bg-background">
-      <SiteHeader />
-      <div className="mx-auto flex flex-1 items-center justify-center px-4">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary-deep">Course tidak ditemukan</h1>
-          <p className="mt-2 text-muted-foreground">Mungkin sudah dipindahkan atau dihapus.</p>
-          <Link
-            to="/"
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[image:var(--gradient-primary)] px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft"
-          >
-            <ArrowLeft className="h-4 w-4" /> Kembali ke beranda
-          </Link>
-        </div>
-      </div>
-      <SiteFooter />
-    </div>
-  ),
   component: CourseDetail,
 });
 
@@ -123,7 +85,7 @@ function DesktopCourseDetail({ course, sessions, onOpenGate }: { course: any, se
               Apa yang akan kamu pelajari
             </h2>
             <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-              {course.syllabus.map((item: string) => (
+              {(course.syllabus || []).map((item: string) => (
                 <li
                   key={item}
                   className="flex items-start gap-3 rounded-2xl border border-border/50 bg-card p-4 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card"
@@ -254,7 +216,7 @@ function MobileCourseDetail({ course, sessions, onOpenGate }: { course: any, ses
          <div className="mx-auto max-w-3xl">
             <h2 className="mb-4 text-sm font-bold text-foreground">Apa yang akan dipelajari</h2>
             <ul className="grid gap-2">
-               {course.syllabus.map((item: string) => (
+               {(course.syllabus || []).map((item: string) => (
                   <li key={item} className="flex items-start gap-2.5 rounded-xl border border-border/50 p-3 shadow-[0_2px_10px_0_rgba(0,0,0,0.02)]">
                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
                      <span className="text-xs font-medium text-foreground">{item}</span>
@@ -268,8 +230,56 @@ function MobileCourseDetail({ course, sessions, onOpenGate }: { course: any, ses
 }
 
 function CourseDetail() {
-  const { course, schedules: sessions } = Route.useLoaderData();
+  const { courseId } = Route.useParams();
+  const [course, setCourse] = useState<any>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [gateOpen, setGateOpen] = useState(false);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const courseData = await fetchCourseById(courseId);
+        setCourse(courseData);
+        if (courseData) {
+          const schedulesData = await fetchSchedulesByCourse(courseId);
+          setSessions(schedulesData);
+        }
+      } catch (err) {
+        console.error("Error loading course:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [courseId]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground animate-pulse">Memuat data kelas...</p>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <SiteHeader />
+        <div className="mx-auto flex flex-1 items-center justify-center px-4">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-primary-deep">Course tidak ditemukan</h1>
+            <p className="mt-2 text-muted-foreground">Mungkin sudah dipindahkan atau dihapus.</p>
+            <Link to="/" className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-md">
+              <ArrowLeft className="h-4 w-4" /> Kembali ke beranda
+            </Link>
+          </div>
+        </div>
+        <SiteFooter />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -285,7 +295,7 @@ function CourseDetail() {
         onOpenChange={setGateOpen}
         courseTitle={course.title}
         courseId={course.id}
-        materialLink={course.materialLink}
+        materialLink={course.material_link}
       />
     </>
   );

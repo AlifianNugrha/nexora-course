@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
   Plus, Edit, Trash2, LogOut, ArrowLeft,
-  Image as ImageIcon, ExternalLink, X
+  Image as ImageIcon, X
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -11,60 +11,32 @@ export const Route = createFileRoute("/admin")({
   component: AdminCMS,
 });
 
-function LoginView({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email === "admin@nexora.id" && password === "nexora123") {
-      onLogin();
-    } else {
-      setError("Email atau Password salah!");
-    }
-  };
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <div className="w-full max-w-md">
-        <form onSubmit={handleLogin} className="space-y-4 rounded-3xl bg-white p-8 shadow-xl">
-          <h1 className="text-2xl font-bold text-center mb-6">Nexora Admin</h1>
-          {error && <div className="text-red-500 text-xs text-center">{error}</div>}
-          <input 
-            type="email" 
-            placeholder="Email" 
-            className="w-full p-3 border rounded-xl"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            className="w-full p-3 border rounded-xl"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-          />
-          <button type="submit" className="w-full bg-primary text-white p-3 rounded-xl font-bold">Login</button>
-        </form>
-      </div>
-    </div>
-  );
-}
+type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "submissions";
 
 function AdminCMS() {
-  const [activeTab, setActiveTab] = useState<string>("dashboard");
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window !== "undefined") {
-      return sessionStorage.getItem("admin_auth") === "true";
-    }
-    return false;
-  });
-
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const [stats, setStats] = useState({ courses: 0, categories: 0, submissions: 0, materials: 0 });
 
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [categories, setCategories] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  // Auth check
+  useEffect(() => {
+    const auth = sessionStorage.getItem("admin_auth");
+    if (auth !== "true") {
+      navigate({ to: "/login" });
+    }
+  }, [navigate]);
+
+  // Data fetching
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -96,96 +68,467 @@ function AdminCMS() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (isLoggedIn) fetchData();
-  }, [fetchData, isLoggedIn]);
-
-  const handleLoginSuccess = () => {
-    sessionStorage.setItem("admin_auth", "true");
-    setIsLoggedIn(true);
-  };
+    fetchData();
+  }, [fetchData]);
 
   const handleLogout = () => {
     sessionStorage.removeItem("admin_auth");
-    setIsLoggedIn(false);
+    navigate({ to: "/login" });
   };
 
-  if (!isLoggedIn) return <LoginView onLogin={handleLoginSuccess} />;
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus item ini?")) return;
+    const table = activeTab === "submissions" ? "form_submissions" : activeTab;
+    await supabase.from(table).delete().eq("id", id);
+    fetchData();
+  };
+
+  const openAddModal = async () => {
+    setEditingItem(null);
+    setFormData({});
+    // Fetch relations for dropdowns
+    const { data: catData } = await supabase.from("categories").select("id, name");
+    const { data: courseData } = await supabase.from("courses").select("id, title");
+    setCategories(catData || []);
+    setCourses(courseData || []);
+    setShowModal(true);
+  };
+
+  const openEditModal = async (item: any) => {
+    setEditingItem(item);
+    setFormData(item);
+    const { data: catData } = await supabase.from("categories").select("id, name");
+    const { data: courseData } = await supabase.from("courses").select("id, title");
+    setCategories(catData || []);
+    setCourses(courseData || []);
+    setShowModal(true);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('thumbnails').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(fileName);
+      setFormData((prev: any) => ({ ...prev, thumbnail: publicUrl }));
+    } catch (err) {
+      console.error(err);
+      alert("Upload gagal. Pastikan bucket 'thumbnails' sudah dibuat.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const table = activeTab === "submissions" ? "form_submissions" : activeTab;
+      const { categories: _, courses: __, ...saveData } = formData;
+      if (editingItem) {
+        const { error } = await supabase.from(table).update(saveData).eq("id", editingItem.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from(table).insert([saveData]);
+        if (error) throw error;
+      }
+      setShowModal(false);
+      fetchData();
+    } catch (err: any) {
+      alert(`Error: ${err.message || "Gagal menyimpan"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      <aside className="w-64 bg-white border-r p-6 space-y-4">
-        <h2 className="font-bold text-xl text-primary mb-8">Nexora CMS</h2>
-        <nav className="space-y-2">
-          {["dashboard", "categories", "courses", "schedules", "materials", "submissions"].map(t => (
-            <button 
-              key={t} 
-              onClick={() => setActiveTab(t)}
-              className={`w-full text-left p-3 rounded-xl capitalize ${activeTab === t ? 'bg-primary text-white' : 'hover:bg-slate-100'}`}
+    <div className="flex min-h-screen bg-slate-50">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-border bg-white hidden lg:block">
+        <div className="flex h-16 items-center gap-2 px-6 border-b border-border">
+          <Layers className="h-6 w-6 text-primary" />
+          <span className="text-lg font-bold text-primary-deep">Nexora Admin</span>
+        </div>
+        <nav className="p-4 space-y-1">
+          {[
+            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { id: "categories", label: "Categories", icon: Layers },
+            { id: "courses", label: "Courses", icon: BookOpen },
+            { id: "schedules", label: "Schedules", icon: Calendar },
+            { id: "materials", label: "Materials", icon: FileText },
+            { id: "submissions", label: "Submissions", icon: Users },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                activeTab === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}
             >
-              {t}
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
             </button>
           ))}
-          <button onClick={handleLogout} className="w-full text-left p-3 text-red-500 mt-8">Logout</button>
-          <Link to="/" className="block p-3 text-slate-500">Back to Site</Link>
+          <div className="pt-8 mt-8 border-t border-border">
+            <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
+              <LogOut className="h-4 w-4" /> Logout
+            </button>
+            <Link to="/" className="mt-2 flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary">
+              <ArrowLeft className="h-4 w-4" /> Back to Site
+            </Link>
+          </div>
         </nav>
       </aside>
 
-      <main className="flex-1 p-8">
-        <header className="mb-8">
-          <h1 className="text-2xl font-bold capitalize">{activeTab}</h1>
+      {/* Main */}
+      <main className="flex-1 overflow-auto">
+        <header className="flex h-16 items-center justify-between border-b border-border bg-white px-8">
+          <h1 className="text-lg font-bold capitalize">{activeTab}</h1>
+          <div className="flex items-center gap-4">
+            {activeTab === "submissions" && data.length > 0 && (
+              <button 
+                onClick={() => {
+                  const headers = ["Name", "Email", "Phone", "Course", "Class", "Date"];
+                  const csvContent = [
+                    headers.join(","),
+                    ...data.map(row => [
+                      `"${row.name || ''}"`, `"${row.email || ''}"`, `"${row.phone || ''}"`,
+                      `"${row.event_name || row.course || ''}"`, `"${row.class_name || ''}"`,
+                      `"${new Date(row.created_at).toLocaleDateString()}"`
+                    ].join(","))
+                  ].join("\n");
+                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                  const link = document.createElement("a");
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `submissions_${new Date().toISOString().split('T')[0]}.csv`;
+                  link.click();
+                }}
+                className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-600 hover:-translate-y-0.5 transition-all"
+              >
+                <FileText className="h-4 w-4" /> Export CSV
+              </button>
+            )}
+            {activeTab !== "dashboard" && activeTab !== "submissions" && (
+              <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
+                <Plus className="h-4 w-4" /> Add New
+              </button>
+            )}
+          </div>
         </header>
 
-        {activeTab === "dashboard" ? (
-          <div className="grid grid-cols-4 gap-6">
-            {Object.entries(stats).map(([k, v]) => (
-              <div key={k} className="bg-white p-6 rounded-3xl border shadow-sm">
-                <p className="text-slate-500 capitalize">{k}</p>
-                <p className="text-3xl font-bold">{v}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="p-4">Info</th>
-                  {activeTab !== "categories" && activeTab !== "submissions" && <th className="p-4">Course</th>}
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? <tr><td colSpan={3} className="p-8 text-center">Loading...</td></tr> :
-                 data.length === 0 ? <tr><td colSpan={3} className="p-8 text-center">No data found.</td></tr> :
-                 data.map(item => (
-                  <tr key={item.id} className="border-b last:border-0">
-                    <td className="p-4">
-                      <p className="font-bold">{item.title || item.name || item.topic || item.email}</p>
-                      <p className="text-xs text-slate-400">{item.id}</p>
-                    </td>
-                    {activeTab !== "categories" && activeTab !== "submissions" && (
-                      <td className="p-4 text-sm text-slate-600">{item.courses?.title || "-"}</td>
+        <div className="p-8">
+          {activeTab === "dashboard" ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Courses", value: stats.courses, icon: BookOpen, color: "bg-blue-500" },
+                { label: "Categories", value: stats.categories, icon: Layers, color: "bg-purple-500" },
+                { label: "Submissions", value: stats.submissions, icon: Users, color: "bg-green-500" },
+                { label: "Materials", value: stats.materials, icon: FileText, color: "bg-orange-500" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-3xl border border-border bg-white p-6 shadow-sm">
+                  <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${s.color} text-white`}>
+                    <s.icon className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
+                  <p className="mt-1 text-3xl font-extrabold">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    {activeTab === "submissions" ? (
+                      <>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">User Info</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Course & Class</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Phone</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Date</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Info</th>
+                        {(activeTab === "materials" || activeTab === "schedules") && (
+                          <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Kelas</th>
+                        )}
+                      </>
                     )}
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={async () => {
-                          if (confirm("Delete?")) {
-                            await supabase.from(activeTab === "submissions" ? "form_submissions" : activeTab).delete().eq("id", item.id);
-                            fetchData();
-                          }
-                        }}
-                        className="text-red-500 p-2 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
+                    <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loading ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">Loading...</td></tr>
+                  ) : data.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">No records found.</td></tr>
+                  ) : data.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      {activeTab === "submissions" ? (
+                        <>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.email}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-medium">{item.event_name || item.course}</p>
+                            <p className="text-[10px] text-muted-foreground">{item.class_name}</p>
+                          </td>
+                          <td className="px-6 py-4 text-sm">{item.phone}</td>
+                          <td className="px-6 py-4 text-xs text-muted-foreground">
+                            {new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {item.thumbnail ? (
+                                <img src={item.thumbnail} className="h-10 w-10 rounded-lg object-cover" />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-5 w-5" /></div>
+                              )}
+                              <div>
+                                <p className="text-sm font-bold">{item.title || item.name || item.topic || item.email}</p>
+                                <p className="text-[10px] font-mono text-muted-foreground">{item.slug || item.level || ""}</p>
+                              </div>
+                            </div>
+                          </td>
+                          {(activeTab === "materials" || activeTab === "schedules") && (
+                            <td className="px-6 py-4 text-sm text-primary">{item.courses?.title || "-"}</td>
+                          )}
+                        </>
+                      )}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          {activeTab !== "submissions" && (
+                            <button onClick={() => openEditModal(item)} className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="h-4 w-4 text-slate-600" /></button>
+                          )}
+                          <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4 text-red-500" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </main>
+
+      {/* ═══ MODAL FORM ═══ */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-extrabold">{editingItem ? "Edit" : "Add New"} {activeTab}</h2>
+              <button onClick={() => setShowModal(false)} className="rounded-full p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-5">
+              {/* Title / Name */}
+              {(activeTab === "categories" || activeTab === "courses" || activeTab === "materials" || activeTab === "schedules") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Title / Name</label>
+                  <input
+                    required
+                    className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.title || formData.name || formData.topic || ""}
+                    onChange={(e) => {
+                      const field = activeTab === "categories" ? "name" : activeTab === "schedules" ? "topic" : "title";
+                      setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Slug (categories) */}
+              {activeTab === "categories" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Slug</label>
+                  <input
+                    required placeholder="e.g. front-end-development"
+                    className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.slug || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, slug: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              {/* Thumbnail (categories & courses) */}
+              {(activeTab === "categories" || activeTab === "courses") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Thumbnail</label>
+                  <div className="flex items-center gap-4">
+                    {formData.thumbnail && <img src={formData.thumbnail} className="h-16 w-16 rounded-xl object-cover border" />}
+                    <div className="flex-1 space-y-2">
+                      <input type="file" accept="image/*" onChange={handleUpload} className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary/10 file:text-primary" />
+                      <input
+                        className="w-full rounded-xl border border-border bg-slate-50 px-4 py-2 text-xs outline-none focus:border-primary"
+                        value={formData.thumbnail || ""} placeholder="Or paste image URL"
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, thumbnail: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  {uploading && <p className="text-xs text-primary animate-pulse font-bold">Uploading...</p>}
+                </div>
+              )}
+
+              {/* Course fields */}
+              {activeTab === "courses" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Category</label>
+                    <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.category_id || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, category_id: e.target.value }))}>
+                      <option value="">Select Category</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Level</label>
+                      <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.level || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, level: e.target.value }))}>
+                        <option value="">Select</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Duration</label>
+                      <input placeholder="e.g. 4 Weeks" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.duration || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, duration: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Instructor</label>
+                      <input placeholder="Mentor Name" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.instructor || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, instructor: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Lessons</label>
+                      <input type="number" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.lessons || 0}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, lessons: parseInt(e.target.value) }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
+                    <input className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.description || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Long Description</label>
+                    <textarea rows={3} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.long_description || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, long_description: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Syllabus (satu per baris)</label>
+                    <textarea rows={4} placeholder={"Introduction\nDesign Thinking\nPrototyping"} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={Array.isArray(formData.syllabus) ? formData.syllabus.join('\n') : ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, syllabus: e.target.value.split('\n').filter((s: string) => s.trim()) }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* Course selector for schedules & materials */}
+              {(activeTab === "schedules" || activeTab === "materials") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Course</label>
+                  <select required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.course_id || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, course_id: e.target.value }))}>
+                    <option value="">Select Course</option>
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Material fields */}
+              {activeTab === "materials" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Order</label>
+                      <input type="number" required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.order || 0}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, order: parseInt(e.target.value) }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Link (optional)</label>
+                      <input placeholder="https://youtube.com/..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.link || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, link: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Content</label>
+                    <textarea rows={10} placeholder="Tulis isi materi..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary font-mono"
+                      value={formData.content || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, content: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* Schedule fields */}
+              {activeTab === "schedules" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Mentor</label>
+                    <input placeholder="Nama Mentor" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.mentor || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, mentor: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Date</label>
+                      <input type="date" required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.date || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, date: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Time</label>
+                      <input placeholder="19:00 - 21:00" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.time || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, time: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Description for categories */}
+              {activeTab === "categories" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
+                  <textarea rows={3} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.description || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-6 border-t mt-8">
+                <button type="button" onClick={() => setShowModal(false)} className="rounded-xl px-6 py-2 text-sm font-bold text-muted-foreground hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={loading} className="rounded-xl bg-primary px-8 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50">
+                  {loading ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

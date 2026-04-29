@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SosmedRouteImport } from './routes/sosmed'
 import { Route as SertifikatRouteImport } from './routes/sertifikat'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as JadwalRouteImport } from './routes/jadwal'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -26,6 +27,11 @@ const SosmedRoute = SosmedRouteImport.update({
 const SertifikatRoute = SertifikatRouteImport.update({
   id: '/sertifikat',
   path: '/sertifikat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JadwalRoute = JadwalRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/jadwal': typeof JadwalRoute
+  '/login': typeof LoginRoute
   '/sertifikat': typeof SertifikatRoute
   '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/jadwal': typeof JadwalRoute
+  '/login': typeof LoginRoute
   '/sertifikat': typeof SertifikatRoute
   '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/jadwal': typeof JadwalRoute
+  '/login': typeof LoginRoute
   '/sertifikat': typeof SertifikatRoute
   '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/jadwal'
+    | '/login'
     | '/sertifikat'
     | '/sosmed'
     | '/course/$courseId'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/jadwal'
+    | '/login'
     | '/sertifikat'
     | '/sosmed'
     | '/course/$courseId'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/jadwal'
+    | '/login'
     | '/sertifikat'
     | '/sosmed'
     | '/course/$courseId'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   JadwalRoute: typeof JadwalRoute
+  LoginRoute: typeof LoginRoute
   SertifikatRoute: typeof SertifikatRoute
   SosmedRoute: typeof SosmedRoute
   CourseCourseIdRoute: typeof CourseCourseIdRoute
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/sertifikat'
       fullPath: '/sertifikat'
       preLoaderRoute: typeof SertifikatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jadwal': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   JadwalRoute: JadwalRoute,
+  LoginRoute: LoginRoute,
   SertifikatRoute: SertifikatRoute,
   SosmedRoute: SosmedRoute,
   CourseCourseIdRoute: CourseCourseIdRoute,
@@ -208,12 +229,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
