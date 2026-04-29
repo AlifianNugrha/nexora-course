@@ -18,13 +18,11 @@ dist-ssr
 
 # Wrangler / Cloudflare
 .wrangler/
-.dev.vars
-
-# PocketBase
-pocketbase/pocketbase
-pocketbase/pocketbase.exe
-pocketbase/pb_data/
-pocketbase/pb_migrations/
+.env
+.dev.env
+.env.development
+.env.production
+.env.*.local
 
 # Editor directories and files
 .vscode/*
