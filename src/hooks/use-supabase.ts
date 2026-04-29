@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const isValidUUID = (id: string) => {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(id);
 };
 
@@ -122,4 +122,3 @@ export async function submitForm(formData: any) {
   if (error) throw error;
   return data[0];
 }
-
