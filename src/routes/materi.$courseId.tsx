@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
   ArrowLeft,
@@ -13,9 +13,26 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { fetchCourseById, fetchMaterialsByCourseId } from "@/hooks/use-supabase";
-import type { Material } from "@/hooks/use-pb"; // Keeping the type for now if it's used
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/materi/$courseId")({
+  beforeLoad: async ({ params }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw redirect({
+        to: "/masuk",
+      });
+    }
+
+    // Check if user is enrolled in this course
+    const enrolled = session.user.user_metadata?.enrolled_courses || [];
+    if (!enrolled.includes(params.courseId)) {
+      throw redirect({
+        to: "/course/$courseId",
+        params: { courseId: params.courseId },
+      });
+    }
+  },
   loader: async ({ params }) => {
     const course = await fetchCourseById(params.courseId);
     if (!course) throw notFound();

@@ -1,11 +1,20 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Calendar, Clock, User, ArrowRight, ArrowLeft } from "lucide-react";
+import { useEffect } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { fetchSchedules, fetchCourses } from "@/hooks/use-supabase";
+import { fetchSchedules, fetchCourses, markSchedulesAsSeen } from "@/hooks/use-supabase";
+import { supabase } from "@/lib/supabase";
+import { redirect } from "@tanstack/react-router";
 import type { Course } from "@/data/courses";
 
 export const Route = createFileRoute("/jadwal")({
+  beforeLoad: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw redirect({ to: "/masuk" });
+    }
+  },
   loader: async () => {
     const [schedules, courses] = await Promise.all([
       fetchSchedules(),
@@ -65,7 +74,7 @@ function DesktopSchedulePage({ schedules, courses, groups, getCourse }: any) {
 
       <section className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="space-y-10">
-          {Object.entries(groups).map(([date, items]) => (
+          {Object.entries(groups as Record<string, any[]>).map(([date, items]) => (
             <div key={date} className="relative">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 flex-col items-center justify-center rounded-xl bg-[image:var(--gradient-primary)] text-primary-foreground shadow-soft">
@@ -208,6 +217,18 @@ function MobileSchedulePage({ schedules, courses, groups, getCourse }: any) {
 
 function SchedulePage() {
   const { schedules, courses } = Route.useLoaderData();
+
+  useEffect(() => {
+    if (schedules && schedules.length > 0) {
+      // Find the latest schedule based on created_at or just the first one if sorted by created_at
+      const latest = [...schedules].sort((a: any, b: any) => b.created_at.localeCompare(a.created_at))[0];
+      if (latest) {
+        markSchedulesAsSeen(latest.id);
+        // Trigger a custom event so other components know the badge should be cleared
+        window.dispatchEvent(new Event("schedules_seen"));
+      }
+    }
+  }, [schedules]);
 
   const getCourse = (courseId: string): Course | undefined =>
     courses.find((c: any) => c.id === courseId);

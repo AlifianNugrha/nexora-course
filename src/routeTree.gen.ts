@@ -9,24 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SosmedRouteImport } from './routes/sosmed'
 import { Route as SertifikatRouteImport } from './routes/sertifikat'
+import { Route as ProfilRouteImport } from './routes/profil'
+import { Route as MasukRouteImport } from './routes/masuk'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JadwalRouteImport } from './routes/jadwal'
+import { Route as GaleriRouteImport } from './routes/galeri'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MateriCourseIdRouteImport } from './routes/materi.$courseId'
 import { Route as KategoriSlugRouteImport } from './routes/kategori.$slug'
+import { Route as EventSuccessRouteImport } from './routes/event.success'
+import { Route as EventEventIdRouteImport } from './routes/event.$eventId'
 import { Route as CourseCourseIdRouteImport } from './routes/course.$courseId'
 
-const SosmedRoute = SosmedRouteImport.update({
-  id: '/sosmed',
-  path: '/sosmed',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SertifikatRoute = SertifikatRouteImport.update({
   id: '/sertifikat',
   path: '/sertifikat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfilRoute = ProfilRouteImport.update({
+  id: '/profil',
+  path: '/profil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasukRoute = MasukRouteImport.update({
+  id: '/masuk',
+  path: '/masuk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -37,6 +46,11 @@ const LoginRoute = LoginRouteImport.update({
 const JadwalRoute = JadwalRouteImport.update({
   id: '/jadwal',
   path: '/jadwal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GaleriRoute = GaleriRouteImport.update({
+  id: '/galeri',
+  path: '/galeri',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -59,6 +73,16 @@ const KategoriSlugRoute = KategoriSlugRouteImport.update({
   path: '/kategori/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EventSuccessRoute = EventSuccessRouteImport.update({
+  id: '/event/success',
+  path: '/event/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventEventIdRoute = EventEventIdRouteImport.update({
+  id: '/event/$eventId',
+  path: '/event/$eventId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CourseCourseIdRoute = CourseCourseIdRouteImport.update({
   id: '/course/$courseId',
   path: '/course/$courseId',
@@ -68,22 +92,30 @@ const CourseCourseIdRoute = CourseCourseIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
   '/login': typeof LoginRoute
+  '/masuk': typeof MasukRoute
+  '/profil': typeof ProfilRoute
   '/sertifikat': typeof SertifikatRoute
-  '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
+  '/event/$eventId': typeof EventEventIdRoute
+  '/event/success': typeof EventSuccessRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
   '/login': typeof LoginRoute
+  '/masuk': typeof MasukRoute
+  '/profil': typeof ProfilRoute
   '/sertifikat': typeof SertifikatRoute
-  '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
+  '/event/$eventId': typeof EventEventIdRoute
+  '/event/success': typeof EventSuccessRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
@@ -91,11 +123,15 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
   '/login': typeof LoginRoute
+  '/masuk': typeof MasukRoute
+  '/profil': typeof ProfilRoute
   '/sertifikat': typeof SertifikatRoute
-  '/sosmed': typeof SosmedRoute
   '/course/$courseId': typeof CourseCourseIdRoute
+  '/event/$eventId': typeof EventEventIdRoute
+  '/event/success': typeof EventSuccessRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
@@ -104,33 +140,45 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/galeri'
     | '/jadwal'
     | '/login'
+    | '/masuk'
+    | '/profil'
     | '/sertifikat'
-    | '/sosmed'
     | '/course/$courseId'
+    | '/event/$eventId'
+    | '/event/success'
     | '/kategori/$slug'
     | '/materi/$courseId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
+    | '/galeri'
     | '/jadwal'
     | '/login'
+    | '/masuk'
+    | '/profil'
     | '/sertifikat'
-    | '/sosmed'
     | '/course/$courseId'
+    | '/event/$eventId'
+    | '/event/success'
     | '/kategori/$slug'
     | '/materi/$courseId'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/galeri'
     | '/jadwal'
     | '/login'
+    | '/masuk'
+    | '/profil'
     | '/sertifikat'
-    | '/sosmed'
     | '/course/$courseId'
+    | '/event/$eventId'
+    | '/event/success'
     | '/kategori/$slug'
     | '/materi/$courseId'
   fileRoutesById: FileRoutesById
@@ -138,29 +186,40 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  GaleriRoute: typeof GaleriRoute
   JadwalRoute: typeof JadwalRoute
   LoginRoute: typeof LoginRoute
+  MasukRoute: typeof MasukRoute
+  ProfilRoute: typeof ProfilRoute
   SertifikatRoute: typeof SertifikatRoute
-  SosmedRoute: typeof SosmedRoute
   CourseCourseIdRoute: typeof CourseCourseIdRoute
+  EventEventIdRoute: typeof EventEventIdRoute
+  EventSuccessRoute: typeof EventSuccessRoute
   KategoriSlugRoute: typeof KategoriSlugRoute
   MateriCourseIdRoute: typeof MateriCourseIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sosmed': {
-      id: '/sosmed'
-      path: '/sosmed'
-      fullPath: '/sosmed'
-      preLoaderRoute: typeof SosmedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sertifikat': {
       id: '/sertifikat'
       path: '/sertifikat'
       fullPath: '/sertifikat'
       preLoaderRoute: typeof SertifikatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profil': {
+      id: '/profil'
+      path: '/profil'
+      fullPath: '/profil'
+      preLoaderRoute: typeof ProfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/masuk': {
+      id: '/masuk'
+      path: '/masuk'
+      fullPath: '/masuk'
+      preLoaderRoute: typeof MasukRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -175,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/jadwal'
       fullPath: '/jadwal'
       preLoaderRoute: typeof JadwalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/galeri': {
+      id: '/galeri'
+      path: '/galeri'
+      fullPath: '/galeri'
+      preLoaderRoute: typeof GaleriRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -205,6 +271,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KategoriSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/event/success': {
+      id: '/event/success'
+      path: '/event/success'
+      fullPath: '/event/success'
+      preLoaderRoute: typeof EventSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/event/$eventId': {
+      id: '/event/$eventId'
+      path: '/event/$eventId'
+      fullPath: '/event/$eventId'
+      preLoaderRoute: typeof EventEventIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/course/$courseId': {
       id: '/course/$courseId'
       path: '/course/$courseId'
@@ -218,11 +298,15 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  GaleriRoute: GaleriRoute,
   JadwalRoute: JadwalRoute,
   LoginRoute: LoginRoute,
+  MasukRoute: MasukRoute,
+  ProfilRoute: ProfilRoute,
   SertifikatRoute: SertifikatRoute,
-  SosmedRoute: SosmedRoute,
   CourseCourseIdRoute: CourseCourseIdRoute,
+  EventEventIdRoute: EventEventIdRoute,
+  EventSuccessRoute: EventSuccessRoute,
   KategoriSlugRoute: KategoriSlugRoute,
   MateriCourseIdRoute: MateriCourseIdRoute,
 }

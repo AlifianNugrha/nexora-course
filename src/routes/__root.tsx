@@ -1,5 +1,6 @@
-import { Outlet, Link, createRootRoute, useMatch } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
 import { BottomNav } from "@/components/BottomNav";
+import { AuthProvider } from "@/hooks/use-auth";
 
 function NotFoundComponent() {
   return (
@@ -36,9 +37,11 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <div className="pb-[calc(4rem+env(safe-area-inset-bottom,1rem))] sm:pb-0">
-      <Outlet />
-      <BottomNav />
-    </div>
+    <AuthProvider>
+      <div className="pb-[calc(4rem+env(safe-area-inset-bottom,1rem))] sm:pb-0">
+        <Outlet />
+        <BottomNav />
+      </div>
+    </AuthProvider>
   );
 }

@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { Lock, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
+import { Calendar, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm } from "@/hooks/use-supabase";
-import { supabase } from "@/lib/supabase";
+import { useNavigate } from "@tanstack/react-router";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Nama minimal 2 karakter").max(80),
@@ -18,22 +17,20 @@ const schema = z.object({
     .min(8, "No. HP minimal 8 digit")
     .max(20)
     .regex(/^[0-9+\-\s]+$/, "No. HP hanya boleh angka"),
-  className: z.string().trim().min(1, "Kelas wajib diisi").max(40),
+  className: z.string().trim().min(1, "Asal Sekolah/Kelas wajib diisi").max(40),
 });
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  courseTitle: string;
-  courseId: string;
-  materialLink: string;
+  eventTitle: string;
+  eventId?: string;
 };
 
-export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLink }: Props) {
+export function EventForm({ open, onOpenChange, eventTitle, eventId }: Props) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", phone: "", className: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,38 +47,29 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
     setErrors({});
     setSubmitting(true);
 
-    // Submit ke Supabase
+    // Submit ke form_submissions dengan 'course' diisi "Event Registration"
     await submitForm({
-      course: courseId,
-      event_name: courseTitle,
+      course: "Event Registration",
+      event_name: eventTitle,
       name: form.name,
       email: form.email,
       phone: form.phone,
       class_name: form.className,
     });
 
-    // Update enrollment metadata if user is logged in
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const enrolled = session.user.user_metadata?.enrolled_courses || [];
-      if (!enrolled.includes(courseId)) {
-        await supabase.auth.updateUser({
-          data: { enrolled_courses: [...enrolled, courseId] }
-        });
-      }
+    // Mark as registered in localStorage
+    const registered = JSON.parse(localStorage.getItem("registered_events") || "[]");
+    if (!registered.includes(eventTitle)) {
+      registered.push(eventTitle);
+      localStorage.setItem("registered_events", JSON.stringify(registered));
     }
 
     setSubmitting(false);
-    setSubmitted(true);
-  };
-
-  const handleGoToMateri = () => {
     onOpenChange(false);
-    navigate({ to: "/materi/$courseId", params: { courseId } });
+    navigate({ to: "/event/success" });
   };
 
   const reset = () => {
-    setSubmitted(false);
     setSubmitting(false);
     setForm({ name: "", email: "", phone: "", className: "" });
     setErrors({});
@@ -96,18 +84,17 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
       }}
     >
       <DialogContent className="w-[92vw] max-w-sm rounded-[2rem] border-border/50 p-0 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
-        {!submitted ? (
           <div className="p-5">
             <DialogHeader className="space-y-1.5 text-left">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[image:var(--gradient-primary)] text-primary-foreground shadow-soft">
-                <Lock className="h-4 w-4" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-soft">
+                <Calendar className="h-4 w-4" />
               </div>
-              <DialogTitle className="text-xl font-extrabold bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">
-                Akses Materi Course
+              <DialogTitle className="text-xl font-extrabold bg-gradient-to-br from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Daftar Event
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Isi data berikut untuk membuka materi{" "}
-                <span className="font-semibold text-foreground">{courseTitle}</span>.
+                Isi data diri kamu untuk mendaftar di event{" "}
+                <span className="font-semibold text-foreground">{eventTitle}</span>.
               </DialogDescription>
             </DialogHeader>
 
@@ -143,23 +130,23 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
                 <div className="space-y-1.5">
                   <Label htmlFor="phone">No. HP</Label>
                   <Input
-                    id="phone"
-                    inputMode="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="0812..."
-                    maxLength={20}
-                    className="rounded-xl"
+                     id="phone"
+                     inputMode="tel"
+                     value={form.phone}
+                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                     placeholder="0812..."
+                     maxLength={20}
+                     className="rounded-xl"
                   />
                   {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="className">Kelas</Label>
+                  <Label htmlFor="className">Asal Sekolah</Label>
                   <Input
                     id="className"
                     value={form.className}
                     onChange={(e) => setForm({ ...form, className: e.target.value })}
-                    placeholder="Misal: 12 IPA 1"
+                    placeholder="SMA N 1..."
                     maxLength={40}
                     className="rounded-xl"
                   />
@@ -172,54 +159,20 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
               <Button
                 type="submit"
                 disabled={submitting}
-                className="group w-full rounded-xl bg-white shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
+                className="group w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:opacity-90 active:scale-95 mt-2"
                 size="lg"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" /> 
-                    <span className="font-bold text-primary">Memproses...</span>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                    <span className="font-bold">Memproses...</span>
                   </>
                 ) : (
-                  <span className="font-bold text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
-                    Buka Materi
-                  </span>
+                  <span className="font-bold">Daftar Sekarang</span>
                 )}
               </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Data kamu hanya digunakan untuk akses materi.
-              </p>
             </form>
           </div>
-        ) : (
-          <div className="p-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-primary">
-              <CheckCircle2 className="h-7 w-7" />
-            </div>
-            <h3 className="mt-4 text-lg font-bold text-primary-deep">
-              Materi siap diakses!
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Halo <span className="font-semibold text-foreground">{form.name}</span>, kamu bisa langsung mengakses materi sekarang.
-            </p>
-            <button
-              onClick={handleGoToMateri}
-              className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
-            >
-              <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
-                Buka Halaman Materi
-              </span>
-              <ArrowRight className="h-4 w-4 text-primary transition-transform duration-300 group-hover:translate-x-1 group-hover:text-purple-600" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="mt-2 inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" /> Tutup
-            </button>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );

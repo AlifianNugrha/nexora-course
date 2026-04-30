@@ -1,16 +1,25 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { GateForm } from "@/components/GateForm";
 import { fetchCourseById, fetchSchedulesByCourse } from "@/hooks/use-supabase";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/lib/supabase";
+import { redirect } from "@tanstack/react-router";
+import { GateForm } from "@/components/GateForm";
 
 export const Route = createFileRoute("/course/$courseId")({
+  beforeLoad: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw redirect({ to: "/masuk" });
+    }
+  },
   component: CourseDetail,
 });
 
-function DesktopCourseDetail({ course, sessions, onOpenGate }: { course: any, sessions: any[], onOpenGate: () => void }) {
+function DesktopCourseDetail({ course, sessions, onAccess }: { course: any, sessions: any[], onAccess: () => void }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -64,13 +73,13 @@ function DesktopCourseDetail({ course, sessions, onOpenGate }: { course: any, se
                   <Lock className="h-4 w-4" /> Materi terkunci — isi form untuk akses
                 </div>
                 <button
-                  onClick={onOpenGate}
+                  onClick={onAccess}
                   className="w-full rounded-2xl bg-[image:var(--gradient-primary)] px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-card transition-all duration-300 hover:shadow-glow hover:scale-[1.01]"
                 >
                   Akses Bahan Materi
                 </button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Gratis — cukup data dasar untuk mulai belajar.
+                  Login menggunakan Google untuk akses instan.
                 </p>
               </div>
             </div>
@@ -139,7 +148,7 @@ function DesktopCourseDetail({ course, sessions, onOpenGate }: { course: any, se
   );
 }
 
-function MobileCourseDetail({ course, sessions, onOpenGate }: { course: any, sessions: any[], onOpenGate: () => void }) {
+function MobileCourseDetail({ course, sessions, onAccess }: { course: any, sessions: any[], onAccess: () => void }) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-background pb-20">
       <SiteHeader />
@@ -199,7 +208,7 @@ function MobileCourseDetail({ course, sessions, onOpenGate }: { course: any, ses
                   <Lock className="h-4 w-4 text-primary" /> Materi ini terkunci.
                </div>
                <button
-                 onClick={onOpenGate}
+                 onClick={onAccess}
                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95 dark:bg-card dark:ring-border"
                >
                  <Lock className="h-4 w-4 text-primary transition-colors group-hover:text-purple-600" />
@@ -234,7 +243,23 @@ function CourseDetail() {
   const [course, setCourse] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [gateOpen, setGateOpen] = useState(false);
+  const [isGateOpen, setIsGateOpen] = useState(false);
+  
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleAccess = async () => {
+    if (user) {
+      const enrolled = user.user_metadata?.enrolled_courses || [];
+      if (enrolled.includes(courseId)) {
+        navigate({ to: "/materi/$courseId", params: { courseId } });
+      } else {
+        setIsGateOpen(true);
+      }
+    } else {
+      navigate({ to: "/masuk" });
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -284,18 +309,18 @@ function CourseDetail() {
   return (
     <>
       <div className="lg:hidden">
-        <MobileCourseDetail course={course} sessions={sessions} onOpenGate={() => setGateOpen(true)} />
+        <MobileCourseDetail course={course} sessions={sessions} onAccess={handleAccess} />
       </div>
       <div className="hidden lg:block">
-        <DesktopCourseDetail course={course} sessions={sessions} onOpenGate={() => setGateOpen(true)} />
+        <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} />
       </div>
-
+      
       <GateForm
-        open={gateOpen}
-        onOpenChange={setGateOpen}
-        courseTitle={course.title}
+        open={isGateOpen}
+        onOpenChange={setIsGateOpen}
         courseId={course.id}
-        materialLink={course.material_link}
+        courseTitle={course.title}
+        materialLink=""
       />
     </>
   );

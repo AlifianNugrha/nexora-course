@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
   Plus, Edit, Trash2, LogOut, ArrowLeft,
-  Image as ImageIcon, X
+  Image as ImageIcon, X, Menu, Camera, Ticket
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -11,14 +11,15 @@ export const Route = createFileRoute("/admin")({
   component: AdminCMS,
 });
 
-type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "submissions";
+type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "submissions" | "events" | "gallery" | "announcements";
 
 function AdminCMS() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const [stats, setStats] = useState({ courses: 0, categories: 0, submissions: 0, materials: 0 });
+  const [stats, setStats] = useState({ courses: 0, categories: 0, submissions: 0, materials: 0, events: 0, gallery: 0, announcements: 0 });
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -41,17 +42,23 @@ function AdminCMS() {
     setLoading(true);
     try {
       if (activeTab === "dashboard") {
-        const [cat, crs, sub, mat] = await Promise.all([
+        const [cat, crs, sub, mat, evt, gal, ann] = await Promise.all([
           supabase.from("categories").select("*", { count: "exact", head: true }),
           supabase.from("courses").select("*", { count: "exact", head: true }),
           supabase.from("form_submissions").select("*", { count: "exact", head: true }),
-          supabase.from("materials").select("*", { count: "exact", head: true })
+          supabase.from("materials").select("*", { count: "exact", head: true }),
+          supabase.from("events").select("*", { count: "exact", head: true }),
+          supabase.from("gallery").select("*", { count: "exact", head: true }),
+          supabase.from("announcements").select("*", { count: "exact", head: true })
         ]);
         setStats({
           categories: cat.count || 0,
           courses: crs.count || 0,
           submissions: sub.count || 0,
-          materials: mat.count || 0
+          materials: mat.count || 0,
+          events: evt.count || 0,
+          gallery: gal.count || 0,
+          announcements: ann.count || 0
         });
       } else {
         const table = activeTab === "submissions" ? "form_submissions" : activeTab;
@@ -114,7 +121,9 @@ function AdminCMS() {
       const { error: uploadError } = await supabase.storage.from('thumbnails').upload(fileName, file);
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(fileName);
-      setFormData((prev: any) => ({ ...prev, thumbnail: publicUrl }));
+      
+      const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+      setFormData((prev: any) => ({ ...prev, [field]: publicUrl }));
     } catch (err) {
       console.error(err);
       alert("Upload gagal. Pastikan bucket 'thumbnails' sudah dibuat.");
@@ -147,11 +156,24 @@ function AdminCMS() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
+      {/* Overlay for mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-white hidden lg:block">
-        <div className="flex h-16 items-center gap-2 px-6 border-b border-border">
-          <Layers className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold text-primary-deep">Nexora Admin</span>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-16 items-center justify-between px-6 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Layers className="h-6 w-6 text-primary" />
+            <span className="text-lg font-bold text-primary-deep">Nexora Admin</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1 rounded-md hover:bg-slate-100">
+            <X className="h-5 w-5 text-slate-500" />
+          </button>
         </div>
         <nav className="p-4 space-y-1">
           {[
@@ -160,11 +182,17 @@ function AdminCMS() {
             { id: "courses", label: "Courses", icon: BookOpen },
             { id: "schedules", label: "Schedules", icon: Calendar },
             { id: "materials", label: "Materials", icon: FileText },
+            { id: "events", label: "Events", icon: Ticket },
+            { id: "gallery", label: "Gallery", icon: Camera },
+            { id: "announcements", label: "Announcements", icon: FileText },
             { id: "submissions", label: "Submissions", icon: Users },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
+              onClick={() => {
+                setActiveTab(tab.id as Tab);
+                setIsSidebarOpen(false);
+              }}
               className={`flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
                 activeTab === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`}
@@ -185,10 +213,15 @@ function AdminCMS() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
-        <header className="flex h-16 items-center justify-between border-b border-border bg-white px-8">
-          <h1 className="text-lg font-bold capitalize">{activeTab}</h1>
-          <div className="flex items-center gap-4">
+      <main className="flex-1 overflow-auto w-full lg:w-auto">
+        <header className="flex h-16 items-center justify-between border-b border-border bg-white px-4 lg:px-8 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100">
+              <Menu className="h-5 w-5 text-slate-700" />
+            </button>
+            <h1 className="text-lg font-bold capitalize">{activeTab}</h1>
+          </div>
+          <div className="flex items-center gap-2 lg:gap-4">
             {activeTab === "submissions" && data.length > 0 && (
               <button 
                 onClick={() => {
@@ -228,6 +261,8 @@ function AdminCMS() {
                 { label: "Categories", value: stats.categories, icon: Layers, color: "bg-purple-500" },
                 { label: "Submissions", value: stats.submissions, icon: Users, color: "bg-green-500" },
                 { label: "Materials", value: stats.materials, icon: FileText, color: "bg-orange-500" },
+                { label: "Events", value: stats.events, icon: Ticket, color: "bg-rose-500" },
+                { label: "Gallery", value: stats.gallery, icon: Camera, color: "bg-indigo-500" },
               ].map((s) => (
                 <div key={s.label} className="rounded-3xl border border-border bg-white p-6 shadow-sm">
                   <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${s.color} text-white`}>
@@ -275,8 +310,15 @@ function AdminCMS() {
                             <p className="text-xs text-muted-foreground">{item.email}</p>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="text-sm font-medium">{item.event_name || item.course}</p>
-                            <p className="text-[10px] text-muted-foreground">{item.class_name}</p>
+                            <div className="flex items-center gap-2">
+                               {item.course === "Event Registration" ? (
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[8px] font-bold text-blue-600 uppercase">Event</span>
+                               ) : (
+                                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[8px] font-bold text-purple-600 uppercase">Course</span>
+                               )}
+                               <p className="text-sm font-medium">{item.event_name || item.course}</p>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">{item.class_name}</p>
                           </td>
                           <td className="px-6 py-4 text-sm">{item.phone}</td>
                           <td className="px-6 py-4 text-xs text-muted-foreground">
@@ -331,9 +373,9 @@ function AdminCMS() {
 
             <form onSubmit={handleSave} className="space-y-5">
               {/* Title / Name */}
-              {(activeTab === "categories" || activeTab === "courses" || activeTab === "materials" || activeTab === "schedules") && (
+              {(activeTab === "categories" || activeTab === "courses" || activeTab === "materials" || activeTab === "schedules" || activeTab === "events" || activeTab === "gallery" || activeTab === "announcements") && (
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Title / Name</label>
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Title / Name / Topic</label>
                   <input
                     required
                     className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
@@ -359,18 +401,21 @@ function AdminCMS() {
                 </div>
               )}
 
-              {/* Thumbnail (categories & courses) */}
-              {(activeTab === "categories" || activeTab === "courses") && (
+              {/* Thumbnail / Image */}
+              {(activeTab === "categories" || activeTab === "courses" || activeTab === "events" || activeTab === "gallery") && (
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Thumbnail</label>
+                  <label className="text-xs font-bold uppercase text-muted-foreground">{activeTab === "gallery" || activeTab === "events" ? "Image URL" : "Thumbnail"}</label>
                   <div className="flex items-center gap-4">
-                    {formData.thumbnail && <img src={formData.thumbnail} className="h-16 w-16 rounded-xl object-cover border" />}
+                    {(formData.thumbnail || formData.image_url) && <img src={formData.thumbnail || formData.image_url} className="h-16 w-16 rounded-xl object-cover border" />}
                     <div className="flex-1 space-y-2">
                       <input type="file" accept="image/*" onChange={handleUpload} className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary/10 file:text-primary" />
                       <input
                         className="w-full rounded-xl border border-border bg-slate-50 px-4 py-2 text-xs outline-none focus:border-primary"
-                        value={formData.thumbnail || ""} placeholder="Or paste image URL"
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, thumbnail: e.target.value }))}
+                        value={formData.thumbnail || formData.image_url || ""} placeholder="Or paste image URL"
+                        onChange={(e) => {
+                          const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+                          setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
+                        }}
                       />
                     </div>
                   </div>
@@ -441,6 +486,12 @@ function AdminCMS() {
                       value={Array.isArray(formData.syllabus) ? formData.syllabus.join('\n') : ""}
                       onChange={(e) => setFormData((prev: any) => ({ ...prev, syllabus: e.target.value.split('\n').filter((s: string) => s.trim()) }))} />
                   </div>
+                  <div className="space-y-2 flex items-center gap-2 mt-4 pt-4 border-t border-border">
+                    <input type="checkbox" id="is_closed_course" className="h-4 w-4"
+                      checked={formData.is_closed || false}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, is_closed: e.target.checked }))} />
+                    <label htmlFor="is_closed_course" className="text-sm font-bold text-red-600 cursor-pointer">Tutup Pendaftaran Kelas Ini (is_closed)</label>
+                  </div>
                 </div>
               )}
 
@@ -509,13 +560,67 @@ function AdminCMS() {
                 </div>
               )}
 
-              {/* Description for categories */}
-              {activeTab === "categories" && (
+              {/* Description for events and gallery and categories */}
+              {(activeTab === "categories" || activeTab === "events" || activeTab === "gallery") && (
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
                   <textarea rows={3} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
                     value={formData.description || ""}
                     onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
+                </div>
+              )}
+              
+              {/* Date for events */}
+              {activeTab === "events" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Event Date</label>
+                    <input type="date" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.event_date || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, event_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Location</label>
+                    <input placeholder="Online / Jakarta" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.location || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, location: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+              {activeTab === "events" && (
+                <div className="space-y-2 flex items-center gap-2">
+                  <input type="checkbox" id="is_closed_event" className="h-4 w-4"
+                    checked={formData.is_closed || false}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, is_closed: e.target.checked }))} />
+                  <label htmlFor="is_closed_event" className="text-sm font-bold text-red-600 cursor-pointer">Tutup Pendaftaran Event Ini (is_closed)</label>
+                </div>
+              )}
+
+              {/* Announcements */}
+              {activeTab === "announcements" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Content</label>
+                    <textarea rows={4} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.content || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, content: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Type</label>
+                    <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.type || "info"}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, type: e.target.value }))}>
+                      <option value="info">Info</option>
+                      <option value="warning">Warning</option>
+                      <option value="success">Success</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2 flex items-center gap-2">
+                    <input type="checkbox" id="is_active_ann" className="h-4 w-4"
+                      checked={formData.is_active !== false}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, is_active: e.target.checked }))} />
+                    <label htmlFor="is_active_ann" className="text-sm font-bold text-foreground cursor-pointer">Active (Tampilkan)</label>
+                  </div>
                 </div>
               )}
 

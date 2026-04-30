@@ -81,6 +81,23 @@ export async function fetchSchedules() {
   })) || [];
 }
 
+export async function checkNewSchedules() {
+  const lastSeen = localStorage.getItem("last_seen_schedule_id");
+  const { data, error } = await supabase
+    .from("schedules")
+    .select("id")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return data.id !== lastSeen;
+}
+
+export function markSchedulesAsSeen(id: string) {
+  if (id) localStorage.setItem("last_seen_schedule_id", id);
+}
+
 export async function fetchMaterialsByCourseId(courseId: string) {
   if (!isValidUUID(courseId)) return [];
 
@@ -134,11 +151,66 @@ export async function fetchSchedulesByCourse(courseId: string) {
 }
 
 export async function submitForm(formData: any) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const submission = {
+    ...formData,
+    user_id: session?.user?.id || null
+  };
+  
   const { data, error } = await supabase
     .from("form_submissions")
-    .insert([formData])
+    .insert([submission])
     .select();
 
   if (error) throw error;
   return data[0];
+}
+
+export async function fetchEvents() {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .order("created_at", { ascending: false });
+  
+  if (error) {
+    console.error("Error fetching events:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function fetchGallery() {
+  const { data, error } = await supabase
+    .from("gallery")
+    .select("*")
+    .order("created_at", { ascending: false });
+  
+  if (error) {
+    console.error("Error fetching gallery:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function checkRegistration(email: string, eventTitle: string, userId?: string) {
+  if (!eventTitle) return false;
+  
+  let query = supabase
+    .from("form_submissions")
+    .select("id")
+    .eq("event_name", eventTitle);
+
+  if (userId) {
+    // If we have userId, check by EITHER userId or email
+    query = query.or(`user_id.eq.${userId},email.eq.${email}`);
+  } else if (email) {
+    query = query.eq("email", email);
+  } else {
+    return false;
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle();
+
+  if (error) return false;
+  return !!data;
 }

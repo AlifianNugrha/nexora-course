@@ -6,15 +6,18 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CategoryCard } from "@/components/CategoryCard";
-import { fetchCategories, fetchCourses } from "@/hooks/use-supabase";
+import { fetchCategories, fetchCourses, fetchEvents, fetchGallery } from "@/hooks/use-supabase";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [categories, courses] = await Promise.all([
+    const [categories, courses, events, gallery] = await Promise.all([
       fetchCategories(),
       fetchCourses(),
+      fetchEvents(),
+      fetchGallery(),
     ]);
-    return { categories, courses };
+    return { categories, courses, events, gallery };
   },
   head: () => ({
     meta: [
@@ -34,7 +37,7 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-function DesktopHomePage({ categories, courses }: { categories: any[]; courses: any[] }) {
+function DesktopHomePage({ categories, courses, events, gallery, onEventClick }: { categories: any[]; courses: any[]; events: any[]; gallery: any[]; onEventClick: (id: string) => void }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -150,6 +153,81 @@ function DesktopHomePage({ categories, courses }: { categories: any[]; courses: 
         </div>
       </section>
 
+      {/* ═══ Events Section ═══ */}
+      <section className="mx-auto w-full max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mb-12 text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight text-primary-deep sm:text-4xl">
+            Event <span className="bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">Mendatang</span>
+          </h2>
+          <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Ikuti berbagai event dan kegiatan seru dari Nexora.
+          </p>
+        </div>
+        
+        {events.length === 0 ? (
+          <div className="text-center p-8 border border-dashed rounded-3xl text-muted-foreground">Belum ada event saat ini.</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            {events.map((event: any) => (
+              <button 
+                key={event.id} 
+                onClick={() => onEventClick(event.id)}
+                className="group relative overflow-hidden text-left rounded-3xl border border-border/50 bg-card shadow-soft hover:shadow-card-hover transition-all"
+              >
+                <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100">
+                  <img src={event.image_url} alt={event.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center gap-2 text-xs font-bold text-primary mb-3">
+                    <Calendar className="h-4 w-4" />
+                    <span>{new Date(event.event_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">{event.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{event.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ═══ Galeri Section ═══ */}
+      <section className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="mb-12 flex items-end justify-between">
+          <div>
+            <h2 className="text-3xl font-extrabold tracking-tight text-primary-deep sm:text-4xl">
+              Galeri <span className="bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">Kegiatan</span>
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Momen seru belajar bersama di Nexora Course.
+            </p>
+          </div>
+          <Link to="/galeri" className="hidden sm:inline-flex items-center gap-2 font-bold text-primary hover:text-purple-600">
+            Lihat Semua <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {gallery.length === 0 ? (
+          <div className="text-center p-8 border border-dashed rounded-3xl text-muted-foreground">Belum ada foto galeri.</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {gallery.slice(0, 8).map((item: any) => (
+              <div key={item.id} className="group relative aspect-square overflow-hidden rounded-2xl bg-slate-100">
+                <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end p-4">
+                  <p className="text-white font-bold text-sm line-clamp-1">{item.title}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-8 text-center sm:hidden">
+          <Link to="/galeri" className="inline-flex items-center gap-2 font-bold text-primary">
+            Lihat Semua Galeri <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* ═══ CTA Section ═══ */}
       <section className="py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -191,7 +269,7 @@ function DesktopHomePage({ categories, courses }: { categories: any[]; courses: 
   );
 }
 
-function MobileHomePage({ categories, courses }: { categories: any[]; courses: any[] }) {
+function MobileHomePage({ categories, courses, events, gallery, onEventClick }: { categories: any[]; courses: any[]; events: any[]; gallery: any[]; onEventClick: (id: string) => void }) {
   const getCategoryIcon = (name: string) => {
     const n = name.toLowerCase();
     if (n.includes('front')) return <MonitorSmartphone className="h-6 w-6 text-blue-500" />;
@@ -333,20 +411,78 @@ function MobileHomePage({ categories, courses }: { categories: any[]; courses: a
           </div>
         </div>
       </section>
+
+      {/* ═══ Events Mobile Section ═══ */}
+      <section className="mt-2 bg-white px-4 py-6 shadow-sm dark:bg-card">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="mb-5 text-base font-bold text-foreground">Event Mendatang</h2>
+          {events.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              Belum ada event saat ini.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {events.map((event: any) => (
+                <button 
+                  key={event.id} 
+                  onClick={() => onEventClick(event.id)}
+                  className="group flex flex-col overflow-hidden text-left rounded-2xl border border-border/50 bg-slate-50 dark:bg-secondary/20"
+                >
+                  <div className="aspect-[16/9] w-full overflow-hidden">
+                    <img src={event.image_url} alt={event.title} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-[10px] font-bold text-primary mb-1">{new Date(event.event_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    <h3 className="line-clamp-2 text-sm font-bold text-foreground">{event.title}</h3>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ═══ Galeri Mobile Section ═══ */}
+      <section className="mt-2 bg-white px-4 py-6 shadow-sm dark:bg-card">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-base font-bold text-foreground">Galeri Kegiatan</h2>
+            <Link to="/galeri" className="text-xs font-bold text-primary hover:underline">Lihat Semua</Link>
+          </div>
+          {gallery.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              Belum ada foto galeri.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {gallery.slice(0, 4).map((item: any) => (
+                <div key={item.id} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-100">
+                  <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
 function HomePage() {
-  const { categories, courses } = Route.useLoaderData();
+  const { categories, courses, events, gallery } = Route.useLoaderData();
+  const navigate = useNavigate();
+
+  const handleEventClick = (id: string) => {
+    navigate({ to: "/event/$eventId", params: { eventId: id } });
+  };
 
   return (
     <>
       <div className="lg:hidden">
-        <MobileHomePage categories={categories} courses={courses} />
+        <MobileHomePage categories={categories} courses={courses} events={events} gallery={gallery} onEventClick={handleEventClick} />
       </div>
       <div className="hidden lg:block">
-        <DesktopHomePage categories={categories} courses={courses} />
+        <DesktopHomePage categories={categories} courses={courses} events={events} gallery={gallery} onEventClick={handleEventClick} />
       </div>
     </>
   );
