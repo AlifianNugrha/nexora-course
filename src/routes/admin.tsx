@@ -6,12 +6,13 @@ import {
   Image as ImageIcon, X, Menu, Camera, Ticket
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSidebar";
+import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
+import { AdminAbsensiPanel } from "@/components/admin/AdminAbsensiPanel";
 
 export const Route = createFileRoute("/admin")({
   component: AdminCMS,
 });
-
-type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "submissions" | "events" | "gallery" | "announcements";
 
 function AdminCMS() {
   const navigate = useNavigate();
@@ -19,7 +20,9 @@ function AdminCMS() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const [stats, setStats] = useState({ courses: 0, categories: 0, submissions: 0, materials: 0, events: 0, gallery: 0, announcements: 0 });
+  const [stats, setStats] = useState({ courses: 0, categories: 0, absensi: 0, materials: 0, events: 0, gallery: 0, announcements: 0, users: 0 });
+  const [adminRole, setAdminRole] = useState<string>("super_admin");
+  const [adminDivisionId, setAdminDivisionId] = useState<string | null>(null);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -29,12 +32,19 @@ function AdminCMS() {
   const [courses, setCourses] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  // Auth check
+  // Auth check - now uses Supabase session + role
   useEffect(() => {
-    const auth = sessionStorage.getItem("admin_auth");
-    if (auth !== "true") {
-      navigate({ to: "/login" });
-    }
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { navigate({ to: "/login" }); return; }
+      const { data: profile } = await supabase.from("user_profiles").select("role, division_id").eq("id", session.user.id).maybeSingle();
+      if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) { navigate({ to: "/login" }); return; }
+      setAdminRole(profile.role);
+      setAdminDivisionId(profile.division_id);
+      sessionStorage.setItem("admin_auth", "true");
+      sessionStorage.setItem("admin_role", profile.role);
+    };
+    checkAuth();
   }, [navigate]);
 
   // Data fetching
@@ -42,29 +52,39 @@ function AdminCMS() {
     setLoading(true);
     try {
       if (activeTab === "dashboard") {
-        const [cat, crs, sub, mat, evt, gal, ann] = await Promise.all([
+        const [cat, crs, sub, mat, evt, gal, ann, usr] = await Promise.all([
           supabase.from("categories").select("*", { count: "exact", head: true }),
           supabase.from("courses").select("*", { count: "exact", head: true }),
           supabase.from("form_submissions").select("*", { count: "exact", head: true }),
           supabase.from("materials").select("*", { count: "exact", head: true }),
           supabase.from("events").select("*", { count: "exact", head: true }),
           supabase.from("gallery").select("*", { count: "exact", head: true }),
-          supabase.from("announcements").select("*", { count: "exact", head: true })
+          supabase.from("announcements").select("*", { count: "exact", head: true }),
+          supabase.from("user_profiles").select("*", { count: "exact", head: true })
         ]);
         setStats({
           categories: cat.count || 0,
           courses: crs.count || 0,
-          submissions: sub.count || 0,
+          absensi: sub.count || 0,
           materials: mat.count || 0,
           events: evt.count || 0,
           gallery: gal.count || 0,
-          announcements: ann.count || 0
+          announcements: ann.count || 0,
+          users: usr.count || 0
         });
+      } else if (activeTab === "absensi" || activeTab === "users") {
+        // Handled by their own panels
+        setData([]);
       } else {
-        const table = activeTab === "submissions" ? "form_submissions" : activeTab;
-        const { data: res } = await supabase.from(table).select(
+        const table = activeTab;
+        let query = supabase.from(table).select(
           activeTab === "materials" || activeTab === "schedules" ? "*, courses(title)" : "*"
         ).order("created_at", { ascending: false });
+        // Mentor: filter by division
+        if (adminRole === "mentor" && adminDivisionId && (activeTab === "courses" || activeTab === "materials" || activeTab === "schedules")) {
+          if (activeTab === "courses") query = query.eq("category_id", adminDivisionId);
+        }
+        const { data: res } = await query;
         setData(res || []);
       }
     } catch (err) {
@@ -78,14 +98,16 @@ function AdminCMS() {
     fetchData();
   }, [fetchData]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     sessionStorage.removeItem("admin_auth");
+    sessionStorage.removeItem("admin_role");
+    await supabase.auth.signOut();
     navigate({ to: "/login" });
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Hapus item ini?")) return;
-    const table = activeTab === "submissions" ? "form_submissions" : activeTab;
+    const table = activeTab;
     await supabase.from(table).delete().eq("id", id);
     fetchData();
   };
@@ -136,7 +158,7 @@ function AdminCMS() {
     e.preventDefault();
     setLoading(true);
     try {
-      const table = activeTab === "submissions" ? "form_submissions" : activeTab;
+      const table = activeTab;
       const { categories: _, courses: __, ...saveData } = formData;
       if (editingItem) {
         const { error } = await supabase.from(table).update(saveData).eq("id", editingItem.id);
@@ -156,102 +178,25 @@ function AdminCMS() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Overlay for mobile */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-white transition-transform duration-300 lg:static lg:translate-x-0 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-16 items-center justify-between px-6 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Layers className="h-6 w-6 text-primary" />
-            <span className="text-lg font-bold text-primary-deep">Nexora Admin</span>
-          </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1 rounded-md hover:bg-slate-100">
-            <X className="h-5 w-5 text-slate-500" />
-          </button>
-        </div>
-        <nav className="p-4 space-y-1">
-          {[
-            { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-            { id: "categories", label: "Categories", icon: Layers },
-            { id: "courses", label: "Courses", icon: BookOpen },
-            { id: "schedules", label: "Schedules", icon: Calendar },
-            { id: "materials", label: "Materials", icon: FileText },
-            { id: "events", label: "Events", icon: Ticket },
-            { id: "gallery", label: "Gallery", icon: Camera },
-            { id: "announcements", label: "Announcements", icon: FileText },
-            { id: "submissions", label: "Submissions", icon: Users },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as Tab);
-                setIsSidebarOpen(false);
-              }}
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                activeTab === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
-          <div className="pt-8 mt-8 border-t border-border">
-            <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50">
-              <LogOut className="h-4 w-4" /> Logout
-            </button>
-            <Link to="/" className="mt-2 flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary">
-              <ArrowLeft className="h-4 w-4" /> Back to Site
-            </Link>
-          </div>
-        </nav>
-      </aside>
+      {/* Sidebar - role-based */}
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
+        onLogout={handleLogout}
+        role={adminRole}
+      />
 
       {/* Main */}
       <main className="flex-1 overflow-auto w-full lg:w-auto">
-        <header className="flex h-16 items-center justify-between border-b border-border bg-white px-4 lg:px-8 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100">
-              <Menu className="h-5 w-5 text-slate-700" />
+        <AdminHeader activeTab={activeTab} onMenuClick={() => setIsSidebarOpen(true)}>
+          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && (
+            <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
+              <Plus className="h-4 w-4" /> Add New
             </button>
-            <h1 className="text-lg font-bold capitalize">{activeTab}</h1>
-          </div>
-          <div className="flex items-center gap-2 lg:gap-4">
-            {activeTab === "submissions" && data.length > 0 && (
-              <button 
-                onClick={() => {
-                  const headers = ["Name", "Email", "Phone", "Course", "Class", "Date"];
-                  const csvContent = [
-                    headers.join(","),
-                    ...data.map(row => [
-                      `"${row.name || ''}"`, `"${row.email || ''}"`, `"${row.phone || ''}"`,
-                      `"${row.event_name || row.course || ''}"`, `"${row.class_name || ''}"`,
-                      `"${new Date(row.created_at).toLocaleDateString()}"`
-                    ].join(","))
-                  ].join("\n");
-                  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                  const link = document.createElement("a");
-                  link.href = URL.createObjectURL(blob);
-                  link.download = `submissions_${new Date().toISOString().split('T')[0]}.csv`;
-                  link.click();
-                }}
-                className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-600 hover:-translate-y-0.5 transition-all"
-              >
-                <FileText className="h-4 w-4" /> Export CSV
-              </button>
-            )}
-            {activeTab !== "dashboard" && activeTab !== "submissions" && (
-              <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
-                <Plus className="h-4 w-4" /> Add New
-              </button>
-            )}
-          </div>
-        </header>
+          )}
+        </AdminHeader>
 
         <div className="p-8">
           {activeTab === "dashboard" ? (
@@ -259,10 +204,11 @@ function AdminCMS() {
               {[
                 { label: "Courses", value: stats.courses, icon: BookOpen, color: "bg-blue-500" },
                 { label: "Categories", value: stats.categories, icon: Layers, color: "bg-purple-500" },
-                { label: "Submissions", value: stats.submissions, icon: Users, color: "bg-green-500" },
+                { label: "Absensi", value: stats.absensi, icon: Users, color: "bg-green-500" },
                 { label: "Materials", value: stats.materials, icon: FileText, color: "bg-orange-500" },
                 { label: "Events", value: stats.events, icon: Ticket, color: "bg-rose-500" },
                 { label: "Gallery", value: stats.gallery, icon: Camera, color: "bg-indigo-500" },
+                ...(adminRole === "super_admin" ? [{ label: "Users", value: stats.users, icon: Users, color: "bg-teal-500" }] : []),
               ].map((s) => (
                 <div key={s.label} className="rounded-3xl border border-border bg-white p-6 shadow-sm">
                   <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${s.color} text-white`}>
@@ -273,12 +219,16 @@ function AdminCMS() {
                 </div>
               ))}
             </div>
+          ) : activeTab === "absensi" ? (
+            <AdminAbsensiPanel />
+          ) : activeTab === "users" ? (
+            <AdminUsersPanel />
           ) : (
             <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b">
                   <tr>
-                    {activeTab === "submissions" ? (
+                    {false ? (
                       <>
                         <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">User Info</th>
                         <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Course & Class</th>
@@ -303,7 +253,7 @@ function AdminCMS() {
                     <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">No records found.</td></tr>
                   ) : data.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      {activeTab === "submissions" ? (
+                      {false ? (
                         <>
                           <td className="px-6 py-4">
                             <p className="text-sm font-bold">{item.name}</p>
@@ -347,9 +297,7 @@ function AdminCMS() {
                       )}
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {activeTab !== "submissions" && (
-                            <button onClick={() => openEditModal(item)} className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="h-4 w-4 text-slate-600" /></button>
-                          )}
+                          <button onClick={() => openEditModal(item)} className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="h-4 w-4 text-slate-600" /></button>
                           <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4 text-red-500" /></button>
                         </div>
                       </td>
@@ -557,6 +505,19 @@ function AdminCMS() {
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, time: e.target.value }))} />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Division selector for gallery */}
+              {activeTab === "gallery" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Divisi / Kategori</label>
+                  <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.category_id || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, category_id: e.target.value || null }))}>
+                    <option value="">— Tanpa Divisi —</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
                 </div>
               )}
 

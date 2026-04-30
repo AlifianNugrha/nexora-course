@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 const isValidUUID = (id: string) => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -182,14 +183,36 @@ export async function fetchEvents() {
 export async function fetchGallery() {
   const { data, error } = await supabase
     .from("gallery")
-    .select("*")
+    .select("*, categories:category_id(id, name, slug)")
     .order("created_at", { ascending: false });
   
   if (error) {
     console.error("Error fetching gallery:", error);
     return [];
   }
-  return data || [];
+  return (data || []).map(item => ({
+    ...item,
+    division_name: item.categories?.name || null,
+    division_slug: item.categories?.slug || null,
+  }));
+}
+
+export async function fetchGalleryByDivision(categoryId: string) {
+  const { data, error } = await supabase
+    .from("gallery")
+    .select("*, categories:category_id(id, name, slug)")
+    .eq("category_id", categoryId)
+    .order("created_at", { ascending: false });
+  
+  if (error) {
+    console.error("Error fetching gallery by division:", error);
+    return [];
+  }
+  return (data || []).map(item => ({
+    ...item,
+    division_name: item.categories?.name || null,
+    division_slug: item.categories?.slug || null,
+  }));
 }
 
 export async function checkRegistration(email: string, eventTitle: string, userId?: string) {
@@ -213,4 +236,168 @@ export async function checkRegistration(email: string, eventTitle: string, userI
 
   if (error) return false;
   return !!data;
+}
+
+// ═══════════════════════════════════════════════════════════
+// USER MANAGEMENT FUNCTIONS (for Super Admin)
+// ═══════════════════════════════════════════════════════════
+
+export async function fetchAllUsers() {
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("*, categories:division_id(id, name)")
+    .order("created_at", { ascending: false });
+  
+  if (error) {
+    console.error("Error fetching users:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function updateUserProfile(userId: string, updates: {
+  role?: string;
+  division_id?: string | null;
+  is_verified?: boolean;
+  full_name?: string;
+}) {
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createUserAccount(userData: {
+  email: string;
+  password: string;
+  full_name: string;
+  role: string;
+  division_id: string | null;
+  is_verified: boolean;
+}) {
+  // Create a separate Supabase client to avoid logging out the admin
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  // Sign up the new user with the temp client
+  const { data, error } = await tempClient.auth.signUp({
+    email: userData.email,
+    password: userData.password,
+    options: {
+      data: {
+        full_name: userData.full_name,
+        role: userData.role,
+        is_verified: userData.is_verified,
+      },
+    },
+  });
+
+  if (error) throw error;
+
+  // The trigger handle_new_user() will auto-create user_profiles row
+  // But we need to update division_id since it's not in auth metadata trigger
+  if (data.user && userData.division_id) {
+    // Wait a moment for the trigger to execute
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    await supabase
+      .from("user_profiles")
+      .update({
+        division_id: userData.division_id,
+        role: userData.role,
+        is_verified: userData.is_verified,
+        full_name: userData.full_name,
+      })
+      .eq("id", data.user.id);
+  }
+
+  return data;
+}
+
+export async function deleteUserAccount(userId: string) {
+  // Delete profile first (cascade should handle this, but be safe)
+  await supabase
+    .from("user_profiles")
+    .delete()
+    .eq("id", userId);
+
+  // Note: Deleting from auth.users requires service_role key
+  // This will only delete the profile, not the auth user
+  // Full deletion needs to be done from Supabase dashboard
+}
+
+// ═══════════════════════════════════════════════════════════
+// ABSENSI (SUBMISSIONS) WITH FILTERS
+// ═══════════════════════════════════════════════════════════
+
+export async function fetchAbsensi(filters?: {
+  course?: string;
+  class_name?: string;
+  category_id?: string;
+}) {
+  let query = supabase
+    .from("form_submissions")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (filters?.course) {
+    query = query.or(`course.eq.${filters.course},event_name.eq.${filters.course}`);
+  }
+  if (filters?.class_name) {
+    query = query.eq("class_name", filters.class_name);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching absensi:", error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function fetchDistinctCourseNames() {
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select("course, event_name")
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  
+  const names = new Set<string>();
+  (data || []).forEach(row => {
+    if (row.event_name) names.add(row.event_name);
+    else if (row.course) names.add(row.course);
+  });
+  return Array.from(names);
+}
+
+export async function fetchDistinctClassNames(courseName?: string) {
+  let query = supabase
+    .from("form_submissions")
+    .select("class_name");
+  
+  if (courseName) {
+    query = query.or(`course.eq.${courseName},event_name.eq.${courseName}`);
+  }
+
+  const { data, error } = await query;
+  if (error) return [];
+  
+  const names = new Set<string>();
+  (data || []).forEach(row => {
+    if (row.class_name) names.add(row.class_name);
+  });
+  return Array.from(names).sort();
 }

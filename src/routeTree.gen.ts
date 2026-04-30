@@ -13,6 +13,7 @@ import { Route as SertifikatRouteImport } from './routes/sertifikat'
 import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as MasukRouteImport } from './routes/masuk'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LengkapiProfilRouteImport } from './routes/lengkapi-profil'
 import { Route as JadwalRouteImport } from './routes/jadwal'
 import { Route as GaleriRouteImport } from './routes/galeri'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -41,6 +42,11 @@ const MasukRoute = MasukRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LengkapiProfilRoute = LengkapiProfilRouteImport.update({
+  id: '/lengkapi-profil',
+  path: '/lengkapi-profil',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JadwalRoute = JadwalRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
+  '/lengkapi-profil': typeof LengkapiProfilRoute
   '/login': typeof LoginRoute
   '/masuk': typeof MasukRoute
   '/profil': typeof ProfilRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
+  '/lengkapi-profil': typeof LengkapiProfilRoute
   '/login': typeof LoginRoute
   '/masuk': typeof MasukRoute
   '/profil': typeof ProfilRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/galeri': typeof GaleriRoute
   '/jadwal': typeof JadwalRoute
+  '/lengkapi-profil': typeof LengkapiProfilRoute
   '/login': typeof LoginRoute
   '/masuk': typeof MasukRoute
   '/profil': typeof ProfilRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/galeri'
     | '/jadwal'
+    | '/lengkapi-profil'
     | '/login'
     | '/masuk'
     | '/profil'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/galeri'
     | '/jadwal'
+    | '/lengkapi-profil'
     | '/login'
     | '/masuk'
     | '/profil'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/galeri'
     | '/jadwal'
+    | '/lengkapi-profil'
     | '/login'
     | '/masuk'
     | '/profil'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   GaleriRoute: typeof GaleriRoute
   JadwalRoute: typeof JadwalRoute
+  LengkapiProfilRoute: typeof LengkapiProfilRoute
   LoginRoute: typeof LoginRoute
   MasukRoute: typeof MasukRoute
   ProfilRoute: typeof ProfilRoute
@@ -227,6 +240,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lengkapi-profil': {
+      id: '/lengkapi-profil'
+      path: '/lengkapi-profil'
+      fullPath: '/lengkapi-profil'
+      preLoaderRoute: typeof LengkapiProfilRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jadwal': {
@@ -300,6 +320,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   GaleriRoute: GaleriRoute,
   JadwalRoute: JadwalRoute,
+  LengkapiProfilRoute: LengkapiProfilRoute,
   LoginRoute: LoginRoute,
   MasukRoute: MasukRoute,
   ProfilRoute: ProfilRoute,

@@ -64,9 +64,16 @@ export function CourseCard({ course, size = "md" }: Props) {
 
         {/* Footer */}
         <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-2 sm:pt-3">
-          <span className="text-[9px] text-muted-foreground sm:text-xs">
-            oleh <span className="font-semibold text-foreground">{course.instructor}</span>
-          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-muted-foreground sm:text-xs">
+              oleh <span className="font-semibold text-foreground">{course.instructor}</span>
+            </span>
+            {(course as any).created_at && (
+              <span className="text-[8px] text-muted-foreground/70 sm:text-[10px]">
+                {new Date((course as any).created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            )}
+          </div>
           <span className="inline-flex items-center gap-1 pl-2 text-[10px] font-bold text-primary transition-colors group-hover:text-primary-deep sm:text-sm whitespace-nowrap">
             Lihat
             <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1 sm:h-4 sm:w-4" />

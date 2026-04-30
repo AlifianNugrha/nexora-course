@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { Lock, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm } from "@/hooks/use-supabase";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Nama minimal 2 karakter").max(80),
@@ -31,10 +32,22 @@ type Props = {
 
 export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLink }: Props) {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", phone: "", className: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && profile) {
+      setForm(prev => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        email: profile.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [open, profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

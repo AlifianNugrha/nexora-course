@@ -1,6 +1,7 @@
-import { Outlet, Link, createRootRoute } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, useRouter, useLocation } from "@tanstack/react-router";
 import { BottomNav } from "@/components/BottomNav";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
 
 function NotFoundComponent() {
   return (
@@ -35,9 +36,30 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
+function GlobalAuthCheck() {
+  const { user, profile, loading } = useAuth();
+  const router = useRouter();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Also redirect to login if not logged in and accessing /lengkapi-profil
+    if (!loading) {
+      const isProfileIncomplete = !profile || !profile.phone;
+      if (user && isProfileIncomplete && location.pathname !== "/lengkapi-profil") {
+        router.navigate({ to: "/lengkapi-profil", replace: true });
+      } else if (!user && location.pathname === "/lengkapi-profil") {
+        router.navigate({ to: "/masuk", replace: true });
+      }
+    }
+  }, [user, profile, loading, location.pathname, router]);
+
+  return null;
+}
+
 function RootComponent() {
   return (
     <AuthProvider>
+      <GlobalAuthCheck />
       <div className="pb-[calc(4rem+env(safe-area-inset-bottom,1rem))] sm:pb-0">
         <Outlet />
         <BottomNav />

@@ -11,14 +11,19 @@ export const Route = createFileRoute("/masuk")({
 });
 
 function MasukPage() {
-  const { user } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate({ to: "/" });
+    if (!loading && user) {
+      const isProfileIncomplete = !profile || !profile.phone;
+      if (isProfileIncomplete) {
+        navigate({ to: "/lengkapi-profil" });
+      } else {
+        navigate({ to: "/" });
+      }
     }
-  }, [user, navigate]);
+  }, [user, profile, loading, navigate]);
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -39,7 +44,7 @@ function MasukPage() {
           </div>
           <h1 className="text-2xl font-extrabold text-foreground mb-2">Masuk ke Nexora</h1>
           <p className="text-muted-foreground mb-8">
-            Gunakan akun Google kamu untuk menyimpan progres belajar dan mengakses materi kelas.
+            Login dengan akun Google kamu. Akses materi akan dibuka setelah diverifikasi oleh admin.
           </p>
           <button
             onClick={handleGoogleLogin}
@@ -53,6 +58,9 @@ function MasukPage() {
             </svg>
             Lanjutkan dengan Google
           </button>
+          <p className="mt-6 text-xs text-muted-foreground">
+            Setelah login, akses materi perlu diverifikasi oleh admin divisi kamu.
+          </p>
         </div>
       </div>
       <SiteFooter />

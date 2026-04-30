@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { Calendar, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm } from "@/hooks/use-supabase";
 import { useNavigate } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Nama minimal 2 karakter").max(80),
@@ -29,9 +30,21 @@ type Props = {
 
 export function EventForm({ open, onOpenChange, eventTitle, eventId }: Props) {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", phone: "", className: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && profile) {
+      setForm(prev => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        email: profile.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [open, profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
