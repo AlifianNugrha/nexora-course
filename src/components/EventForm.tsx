@@ -112,61 +112,20 @@ export function EventForm({ open, onOpenChange, eventTitle, eventId }: Props) {
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="name" className="text-xs">Nama Lengkap</Label>
-                <Input
-                  id="name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Misal: Budi Santoso"
-                  maxLength={80}
-                  className="rounded-xl"
-                />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-              </div>
-
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="className">Asal Sekolah / Kelas</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="kamu@email.com"
-                  maxLength={120}
+                  id="className"
+                  value={form.className}
+                  onChange={(e) => setForm({ ...form, className: e.target.value })}
+                  placeholder="SMA N 1..."
+                  maxLength={40}
                   className="rounded-xl"
+                  autoFocus
                 />
-                {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone">No. HP</Label>
-                  <Input
-                     id="phone"
-                     inputMode="tel"
-                     value={form.phone}
-                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                     placeholder="0812..."
-                     maxLength={20}
-                     className="rounded-xl"
-                  />
-                  {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="className">Asal Sekolah</Label>
-                  <Input
-                    id="className"
-                    value={form.className}
-                    onChange={(e) => setForm({ ...form, className: e.target.value })}
-                    placeholder="SMA N 1..."
-                    maxLength={40}
-                    className="rounded-xl"
-                  />
-                  {errors.className && (
-                    <p className="text-xs text-destructive">{errors.className}</p>
-                  )}
-                </div>
+                {errors.className && (
+                  <p className="text-xs text-destructive">{errors.className}</p>
+                )}
               </div>
 
               <Button
