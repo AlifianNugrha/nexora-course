@@ -10,12 +10,6 @@ import { redirect } from "@tanstack/react-router";
 import { GateForm } from "@/components/GateForm";
 
 export const Route = createFileRoute("/course/$courseId")({
-  beforeLoad: async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      throw redirect({ to: "/masuk" });
-    }
-  },
   component: CourseDetail,
 });
 
