@@ -24,7 +24,7 @@ function LengkapiProfilPage() {
     phone: (profile as any)?.phone || "",
   });
 
-  const isComplete = form.full_name.trim().length >= 2 && form.phone.trim().length >= 8;
+  const isComplete = (form.full_name || "").trim().length >= 2 && (form.phone || "").trim().length >= 8;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,20 +32,23 @@ function LengkapiProfilPage() {
     setSaving(true);
 
     try {
-      await supabase.from("user_profiles").upsert({
+      const { error } = await supabase.from("user_profiles").upsert({
         id: user.id,
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        is_verified: true,
+        // Jangan auto-verify jika admin yang harus memverifikasi
+        // is_verified: false,
         updated_at: new Date().toISOString(),
       }, { onConflict: "id" });
 
+      if (error) throw error;
+
       await refreshProfile();
       navigate({ to: "/" });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Gagal menyimpan profil. Coba lagi.");
+      alert(`Gagal menyimpan profil: ${err.message || "Coba lagi."}`);
     } finally {
       setSaving(false);
     }
