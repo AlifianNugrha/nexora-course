@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
@@ -11,6 +11,20 @@ import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
 import { AdminAbsensiPanel } from "@/components/admin/AdminAbsensiPanel";
 
 export const Route = createFileRoute("/admin")({
+  beforeLoad: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/login" });
+    
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, division_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+      
+    if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) {
+      throw redirect({ to: "/login" });
+    }
+  },
   component: AdminCMS,
 });
 
