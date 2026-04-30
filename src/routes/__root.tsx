@@ -44,7 +44,10 @@ function GlobalAuthCheck() {
   useEffect(() => {
     // Also redirect to login if not logged in and accessing /lengkapi-profil
     if (!loading) {
-      const isProfileIncomplete = !profile || !profile.phone;
+      // Admin/Mentor doesn't strictly need a phone number to access CMS
+      const isAdminOrMentor = profile?.role === "super_admin" || profile?.role === "mentor";
+      const isProfileIncomplete = (!profile || !profile.phone) && !isAdminOrMentor;
+
       if (user && isProfileIncomplete && location.pathname !== "/lengkapi-profil") {
         router.navigate({ to: "/lengkapi-profil", replace: true });
       } else if (!user && location.pathname === "/lengkapi-profil") {
