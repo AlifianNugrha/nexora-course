@@ -10,14 +10,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
-  name: z.string().trim().min(2, "Nama minimal 2 karakter").max(80),
-  email: z.string().trim().email("Email tidak valid").max(120),
-  phone: z
-    .string()
-    .trim()
-    .min(8, "No. HP minimal 8 digit")
-    .max(20)
-    .regex(/^[0-9+\-\s]+$/, "No. HP hanya boleh angka"),
+  name: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email("Email tidak valid").optional().or(z.literal("")),
+  phone: z.string().trim().optional().or(z.literal("")),
   className: z.string().trim().min(1, "Asal Sekolah/Kelas wajib diisi").max(40),
 });
 
@@ -60,26 +55,32 @@ export function EventForm({ open, onOpenChange, eventTitle, eventId }: Props) {
     setErrors({});
     setSubmitting(true);
 
-    // Submit ke form_submissions dengan 'course' diisi "Event Registration"
-    await submitForm({
-      course: "Event Registration",
-      event_name: eventTitle,
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      class_name: form.className,
-    });
+    try {
+      // Submit ke form_submissions dengan 'course' diisi "Event Registration"
+      await submitForm({
+        course: "Event Registration",
+        event_name: eventTitle,
+        name: form.name || "Anonim",
+        email: form.email || "noemail@example.com",
+        phone: form.phone || "-",
+        class_name: form.className,
+      });
 
-    // Mark as registered in localStorage
-    const registered = JSON.parse(localStorage.getItem("registered_events") || "[]");
-    if (!registered.includes(eventTitle)) {
-      registered.push(eventTitle);
-      localStorage.setItem("registered_events", JSON.stringify(registered));
+      // Mark as registered in localStorage
+      const registered = JSON.parse(localStorage.getItem("registered_events") || "[]");
+      if (!registered.includes(eventTitle)) {
+        registered.push(eventTitle);
+        localStorage.setItem("registered_events", JSON.stringify(registered));
+      }
+
+      onOpenChange(false);
+      navigate({ to: "/event/success" });
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal mendaftar event: ${err.message}`);
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
-    onOpenChange(false);
-    navigate({ to: "/event/success" });
   };
 
   const reset = () => {

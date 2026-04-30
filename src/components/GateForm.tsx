@@ -11,14 +11,9 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/use-auth";
 
 const schema = z.object({
-  name: z.string().trim().min(2, "Nama minimal 2 karakter").max(80),
-  email: z.string().trim().email("Email tidak valid").max(120),
-  phone: z
-    .string()
-    .trim()
-    .min(8, "No. HP minimal 8 digit")
-    .max(20)
-    .regex(/^[0-9+\-\s]+$/, "No. HP hanya boleh angka"),
+  name: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email("Email tidak valid").optional().or(z.literal("")),
+  phone: z.string().trim().optional().or(z.literal("")),
   className: z.string().trim().min(1, "Kelas wajib diisi").max(40),
 });
 
@@ -63,29 +58,35 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
     setErrors({});
     setSubmitting(true);
 
-    // Submit ke Supabase
-    await submitForm({
-      course: courseId,
-      event_name: courseTitle,
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      class_name: form.className,
-    });
+    try {
+      // Submit ke Supabase
+      await submitForm({
+        course: courseId,
+        event_name: courseTitle,
+        name: form.name || "Anonim",
+        email: form.email || "noemail@example.com",
+        phone: form.phone || "-",
+        class_name: form.className,
+      });
 
-    // Update enrollment metadata if user is logged in
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      const enrolled = session.user.user_metadata?.enrolled_courses || [];
-      if (!enrolled.includes(courseId)) {
-        await supabase.auth.updateUser({
-          data: { enrolled_courses: [...enrolled, courseId] }
-        });
+      // Update enrollment metadata if user is logged in
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const enrolled = session.user.user_metadata?.enrolled_courses || [];
+        if (!enrolled.includes(courseId)) {
+          await supabase.auth.updateUser({
+            data: { enrolled_courses: [...enrolled, courseId] }
+          });
+        }
       }
-    }
 
-    setSubmitting(false);
-    setSubmitted(true);
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal memproses pendaftaran: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleGoToMateri = () => {
