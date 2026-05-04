@@ -269,24 +269,35 @@ function AdminCMS() {
       });
 
       const fileData = await uploadResponse.json();
-      if (fileData.error) throw new Error(fileData.error.message);
+      if (fileData.error) {
+        console.error("Google Drive Upload Error:", fileData.error);
+        throw new Error(fileData.error.message);
+      }
+
+      console.log("File uploaded successfully:", fileData);
 
       // 6. Set permission to PUBLIC (anyone with link)
-      await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
-        method: "POST",
-        headers: new Headers({
-          Authorization: `Bearer ${googleToken}`,
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({ role: "reader", type: "anyone" }),
-      });
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+          method: "POST",
+          headers: new Headers({
+            Authorization: `Bearer ${googleToken}`,
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({ role: "reader", type: "anyone" }),
+        });
+        console.log("Permissions set to public successfully");
+      } catch (permErr) {
+        console.warn("Failed to set public permission, but file was uploaded:", permErr);
+        // We don't throw here so the link still gets saved
+      }
 
       // 7. Update form data with the link
       setFormData((prev: any) => ({ ...prev, link: fileData.webViewLink }));
       alert(`Berhasil! File tersimpan di Folder: Nexora_Materials > ${courseTitle}`);
     } catch (err: any) {
-      console.error(err);
-      alert(`Gagal upload ke Drive: ${err.message}`);
+      console.error("Full Upload Process Error:", err);
+      alert(`Gagal upload ke Drive: ${err.message || "Terjadi kesalahan tidak dikenal"}`);
     } finally {
       setDriveSubmitting(false);
     }
@@ -436,6 +447,19 @@ function AdminCMS() {
           )}
         </div>
       </main>
+      
+      {/* GLOBAL LOADING OVERLAY FOR DRIVE UPLOAD */}
+      {driveSubmitting && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-10 shadow-2xl dark:bg-card">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-foreground">Sedang Mengunggah...</h3>
+              <p className="text-sm text-muted-foreground">Mohon tunggu, sedang merapikan file di Google Drive kamu.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ MODAL FORM ═══ */}
       {showModal && (
