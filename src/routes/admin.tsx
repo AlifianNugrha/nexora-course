@@ -212,28 +212,66 @@ function AdminCMS() {
     setDriveSubmitting(true);
 
     try {
-      // 1. Metadata for file
+      const authHeader = new Headers({ Authorization: `Bearer ${googleToken}` });
+      const courseTitle = courses.find(c => c.id === formData.course_id)?.title || "General";
+
+      // 1. Find or Create Root Folder "Nexora_Materials"
+      let rootFolderId = "";
+      const rootSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='Nexora_Materials' and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const rootResult = await rootSearch.json();
+      
+      if (rootResult.files && rootResult.files.length > 0) {
+        rootFolderId = rootResult.files[0].id;
+      } else {
+        const createRoot = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
+          body: JSON.stringify({ name: "Nexora_Materials", mimeType: "application/vnd.google-apps.folder" }),
+        });
+        const newRoot = await createRoot.json();
+        rootFolderId = newRoot.id;
+      }
+
+      // 2. Find or Create Course Folder inside Root
+      let courseFolderId = "";
+      const courseSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${courseTitle}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const courseResult = await courseSearch.json();
+
+      if (courseResult.files && courseResult.files.length > 0) {
+        courseFolderId = courseResult.files[0].id;
+      } else {
+        const createCourse = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
+          body: JSON.stringify({ name: courseTitle, mimeType: "application/vnd.google-apps.folder", parents: [rootFolderId] }),
+        });
+        const newCourse = await createCourse.json();
+        courseFolderId = newCourse.id;
+      }
+
+      // 3. Metadata for file with parents
       const metadata = {
         name: file.name,
         mimeType: file.type,
+        parents: [courseFolderId],
       };
 
-      // 2. Multipart body
+      // 4. Multipart body
       const form = new FormData();
       form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
       form.append("file", file);
 
-      // 3. Upload to Google Drive
+      // 5. Upload to Google Drive
       const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
         method: "POST",
-        headers: new Headers({ Authorization: `Bearer ${googleToken}` }),
+        headers: authHeader,
         body: form,
       });
 
       const fileData = await uploadResponse.json();
       if (fileData.error) throw new Error(fileData.error.message);
 
-      // 4. Set permission to PUBLIC (anyone with link)
+      // 6. Set permission to PUBLIC (anyone with link)
       await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
         method: "POST",
         headers: new Headers({
@@ -243,9 +281,9 @@ function AdminCMS() {
         body: JSON.stringify({ role: "reader", type: "anyone" }),
       });
 
-      // 5. Update form data with the link
+      // 7. Update form data with the link
       setFormData((prev: any) => ({ ...prev, link: fileData.webViewLink }));
-      alert("File berhasil diupload ke Google Drive dan diset Publik!");
+      alert(`Berhasil! File tersimpan di Folder: Nexora_Materials > ${courseTitle}`);
     } catch (err: any) {
       console.error(err);
       alert(`Gagal upload ke Drive: ${err.message}`);
@@ -566,8 +604,8 @@ function AdminCMS() {
                           <div className="flex items-center gap-2">
                             <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 py-2 text-[10px] font-bold text-primary transition-all hover:bg-primary/10">
                               <Cloud className="h-3 w-3" />
-                              {driveSubmitting ? "Uploading to Drive..." : "Upload Video to Google Drive"}
-                              <input type="file" className="hidden" accept="video/*,application/pdf" onChange={handleUploadToDrive} disabled={driveSubmitting} />
+                              {driveSubmitting ? "Uploading to Drive..." : "Upload File to Google Drive"}
+                              <input type="file" className="hidden" onChange={handleUploadToDrive} disabled={driveSubmitting} />
                             </label>
                           </div>
                         ) : (
