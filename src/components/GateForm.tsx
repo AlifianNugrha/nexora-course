@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { Lock, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -97,9 +97,13 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
     }
   };
 
+  const router = useRouter();
   const handleGoToMateri = () => {
     onOpenChange(false);
-    navigate({ to: "/materi/$courseId", params: { courseId } });
+    // Force router to re-evaluate all routes (clears enrollment cache)
+    router.invalidate().then(() => {
+      navigate({ to: "/materi/$courseId", params: { courseId } });
+    });
   };
 
   const reset = () => {
