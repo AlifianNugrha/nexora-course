@@ -6,6 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { submitForm } from "@/hooks/use-supabase";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/use-auth";
@@ -128,16 +135,23 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="className">Kelas / Asal Sekolah</Label>
-                <Input
-                  id="className"
+                <Label htmlFor="className">Pilih Kelas</Label>
+                <Select
                   value={form.className}
-                  onChange={(e) => setForm({ ...form, className: e.target.value })}
-                  placeholder="Misal: 12 IPA 1"
-                  maxLength={40}
-                  className="rounded-xl"
-                  autoFocus
-                />
+                  onValueChange={(value) => setForm({ ...form, className: value })}
+                >
+                  <SelectTrigger className="h-12 rounded-xl border-border bg-slate-50 focus:ring-primary dark:bg-secondary">
+                    <SelectValue placeholder="Pilih kelas kamu" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border">
+                    <SelectItem value="TIA2">TIA2</SelectItem>
+                    <SelectItem value="TIA4">TIA4</SelectItem>
+                    <SelectItem value="TIA6">TIA6</SelectItem>
+                    <SelectItem value="TIC2">TIC2</SelectItem>
+                    <SelectItem value="TIC4">TIC4</SelectItem>
+                    <SelectItem value="TIC6">TIC6</SelectItem>
+                  </SelectContent>
+                </Select>
                 {errors.className && (
                   <p className="text-xs text-destructive">{errors.className}</p>
                 )}
