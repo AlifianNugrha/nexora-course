@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { FileText, Search, Loader2, Trash2 } from "lucide-react";
 import { fetchAbsensi, fetchDistinctCourseNames, fetchDistinctClassNames, deleteSubmission } from "@/hooks/use-supabase";
 
