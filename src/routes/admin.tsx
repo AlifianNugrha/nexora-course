@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
   Plus, Edit, Trash2, LogOut, ArrowLeft,
-  Image as ImageIcon, X, Menu, Camera, Ticket, Cloud
+  Image as ImageIcon, X, Menu, Camera, Ticket, Cloud, Loader2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSidebar";
