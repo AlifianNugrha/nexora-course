@@ -602,9 +602,22 @@ function AdminCMS() {
                         
                         {googleToken ? (
                           <div className="flex items-center gap-2">
-                            <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 py-2 text-[10px] font-bold text-primary transition-all hover:bg-primary/10">
-                              <Cloud className="h-3 w-3" />
-                              {driveSubmitting ? "Uploading to Drive..." : "Upload File to Google Drive"}
+                            <label className={`flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed py-2.5 text-[10px] font-bold transition-all ${
+                              driveSubmitting 
+                                ? "border-primary bg-primary/5 text-primary cursor-not-allowed" 
+                                : "border-primary/40 bg-primary/5 text-primary cursor-pointer hover:bg-primary/10"
+                            }`}>
+                              {driveSubmitting ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Proses Upload ke Drive...
+                                </>
+                              ) : (
+                                <>
+                                  <Cloud className="h-3 w-3" />
+                                  Upload File to Google Drive
+                                </>
+                              )}
                               <input type="file" className="hidden" onChange={handleUploadToDrive} disabled={driveSubmitting} />
                             </label>
                           </div>
