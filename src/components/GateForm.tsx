@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { Lock, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -97,15 +97,6 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
     }
   };
 
-  const router = useRouter();
-  const handleGoToMateri = () => {
-    onOpenChange(false);
-    // Force router to re-evaluate all routes (clears enrollment cache)
-    router.invalidate().then(() => {
-      navigate({ to: "/materi/$courseId", params: { courseId } });
-    });
-  };
-
   const reset = () => {
     setSubmitted(false);
     setSubmitting(false);
@@ -195,15 +186,17 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
             <p className="mt-1 text-sm text-muted-foreground">
               Halo <span className="font-semibold text-foreground">{form.name}</span>, kamu bisa langsung mengakses materi sekarang.
             </p>
-            <button
-              onClick={handleGoToMateri}
+            <Link
+              to="/materi/$courseId"
+              params={{ courseId }}
+              onClick={() => onOpenChange(false)}
               className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
             >
               <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
                 Buka Halaman Materi
               </span>
               <ArrowRight className="h-4 w-4 text-primary transition-transform duration-300 group-hover:translate-x-1 group-hover:text-purple-600" />
-            </button>
+            </Link>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
