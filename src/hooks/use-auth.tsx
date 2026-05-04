@@ -9,6 +9,7 @@ export type UserProfile = {
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  class_name: string | null;
   role: UserRole;
   division_id: string | null;
   division_name?: string | null;
@@ -54,6 +55,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     full_name: data.full_name,
     email: data.email,
     phone: data.phone,
+    class_name: data.class_name,
     role: data.role as UserRole,
     division_id: data.division_id,
     division_name: data.categories?.name || null,

@@ -97,6 +97,13 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
     }
   };
 
+  const handleGoToMateri = () => {
+    onOpenChange(false);
+    setTimeout(() => {
+      navigate({ to: "/materi/$courseId", params: { courseId } });
+    }, 200);
+  };
+
   const reset = () => {
     setSubmitted(false);
     setSubmitting(false);
@@ -112,7 +119,7 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
         if (!o) setTimeout(reset, 200);
       }}
     >
-      <DialogContent className="w-[92vw] max-w-sm rounded-[2rem] border-border/50 p-0 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
+      <DialogContent className="w-[92vw] max-w-sm rounded-[2rem] border-border/50 p-0 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-[110]">
         {!submitted ? (
           <div className="p-5">
             <DialogHeader className="space-y-1.5 text-left">
@@ -186,17 +193,16 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
             <p className="mt-1 text-sm text-muted-foreground">
               Halo <span className="font-semibold text-foreground">{form.name}</span>, kamu bisa langsung mengakses materi sekarang.
             </p>
-            <Link
-              to="/materi/$courseId"
-              params={{ courseId }}
-              onClick={() => onOpenChange(false)}
-              className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
+            <button
+              type="button"
+              onClick={handleGoToMateri}
+              className="relative z-[120] group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
             >
               <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
                 Buka Halaman Materi
               </span>
               <ArrowRight className="h-4 w-4 text-primary transition-transform duration-300 group-hover:translate-x-1 group-hover:text-purple-600" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => onOpenChange(false)}

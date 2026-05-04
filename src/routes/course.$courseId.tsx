@@ -1,13 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar } from "lucide-react";
+import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar, X, Loader2 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { fetchCourseById, fetchSchedulesByCourse } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "@tanstack/react-router";
-import { GateForm } from "@/components/GateForm";
 
 export const Route = createFileRoute("/course/$courseId")({
   beforeLoad: async () => {
@@ -70,16 +69,21 @@ function DesktopCourseDetail({ course, sessions, onAccess }: { course: any, sess
               />
               <div className="space-y-4 p-6">
                 <div className="flex items-center gap-2 text-sm text-primary-deep">
-                  <Lock className="h-4 w-4" /> Materi terkunci — isi form untuk akses
+                  {course.is_closed ? (
+                    <><X className="h-4 w-4 text-destructive" /> Pendaftaran telah ditutup</>
+                  ) : (
+                    <><Lock className="h-4 w-4" /> Akses instan dengan profil lengkap</>
+                  )}
                 </div>
                 <button
                   onClick={onAccess}
-                  className="w-full rounded-2xl bg-[image:var(--gradient-primary)] px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-card transition-all duration-300 hover:shadow-glow hover:scale-[1.01]"
+                  disabled={course.is_closed}
+                  className={`w-full rounded-2xl px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-card transition-all duration-300 ${course.is_closed ? 'bg-slate-400 cursor-not-allowed' : 'bg-[image:var(--gradient-primary)] hover:shadow-glow hover:scale-[1.01]'}`}
                 >
-                  Akses Bahan Materi
+                  {course.is_closed ? "Pendaftaran Ditutup" : "Akses Bahan Materi"}
                 </button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Login menggunakan Google untuk akses instan.
+                  {course.is_closed ? "Kelas ini sudah tidak menerima pendaftaran." : "Pastikan profil kamu sudah lengkap untuk akses instan."}
                 </p>
               </div>
             </div>
@@ -205,15 +209,20 @@ function MobileCourseDetail({ course, sessions, onAccess }: { course: any, sessi
             <h2 className="mb-3 text-sm font-bold text-foreground">Akses Pembelajaran</h2>
             <div className="rounded-2xl border border-border/50 bg-gradient-to-r from-primary/5 to-secondary/5 p-4 shadow-[0_4px_14px_0_rgba(0,0,0,0.02)]">
                <div className="flex items-center gap-2 text-xs font-semibold text-primary-deep mb-3">
-                  <Lock className="h-4 w-4 text-primary" /> Materi ini terkunci.
+                  {course.is_closed ? (
+                    <><X className="h-4 w-4 text-destructive" /> Pendaftaran ditutup</>
+                  ) : (
+                    <><Lock className="h-4 w-4 text-primary" /> Akses materi instan</>
+                  )}
                </div>
                <button
                  onClick={onAccess}
-                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95 dark:bg-card dark:ring-border"
+                 disabled={course.is_closed}
+                 className={`group flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all ${course.is_closed ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-primary hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95 dark:bg-card dark:ring-border'}`}
                >
-                 <Lock className="h-4 w-4 text-primary transition-colors group-hover:text-purple-600" />
-                 <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
-                   Akses Bahan Materi
+                 <Lock className={`h-4 w-4 ${course.is_closed ? 'text-slate-400' : 'text-primary transition-colors group-hover:text-purple-600'}`} />
+                 <span className={course.is_closed ? "" : "transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent"}>
+                   {course.is_closed ? "Pendaftaran Ditutup" : "Akses Bahan Materi"}
                  </span>
                </button>
             </div>
@@ -243,14 +252,26 @@ function CourseDetail() {
   const [course, setCourse] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isGateOpen, setIsGateOpen] = useState(false);
   
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
 
   const handleAccess = async () => {
-    if (user) {
-      // Check database for enrollment (Real-time check)
+    if (!user) {
+      navigate({ to: "/masuk" });
+      return;
+    }
+
+    // 1. Check if profile is complete (needs class_name)
+    if (!profile?.class_name) {
+      navigate({ to: "/lengkapi-profil" });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // 2. Check database for enrollment
       const { data: enrollment } = await supabase
         .from("form_submissions")
         .select("id")
@@ -258,13 +279,27 @@ function CourseDetail() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (enrollment) {
-        navigate({ to: "/materi/$courseId", params: { courseId } });
-      } else {
-        setIsGateOpen(true);
+      if (!enrollment) {
+        // 3. Auto-enroll in background (Absensi)
+        const { error } = await supabase.from("form_submissions").insert([{
+          course: courseId,
+          event_name: course.title,
+          name: profile.full_name || "User",
+          email: profile.email || "",
+          phone: profile.phone || "-",
+          class_name: profile.class_name,
+          user_id: user.id
+        }]);
+        if (error) throw error;
       }
-    } else {
-      navigate({ to: "/masuk" });
+
+      // 4. Navigate directly to materials
+      navigate({ to: "/materi/$courseId", params: { courseId } });
+    } catch (err) {
+      console.error("Enrollment error:", err);
+      alert("Gagal mengakses materi. Silakan coba lagi.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -321,14 +356,18 @@ function CourseDetail() {
       <div className="hidden lg:block">
         <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} />
       </div>
-      
-      <GateForm
-        open={isGateOpen}
-        onOpenChange={setIsGateOpen}
-        courseId={course.id}
-        courseTitle={course.title}
-        materialLink=""
-      />
+
+      {submitting && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-10 shadow-2xl dark:bg-card">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold">Mempersiapkan Materi...</h3>
+              <p className="text-sm text-muted-foreground">Mohon tunggu sebentar.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

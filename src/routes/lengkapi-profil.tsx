@@ -22,9 +22,13 @@ function LengkapiProfilPage() {
     full_name: profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || "",
     email: user?.email || "",
     phone: (profile as any)?.phone || "",
+    class_name: (profile as any)?.class_name || "",
   });
 
-  const isComplete = (form.full_name || "").trim().length >= 2 && (form.phone || "").trim().length >= 8;
+  const isComplete = 
+    (form.full_name || "").trim().length >= 2 && 
+    (form.phone || "").trim().length >= 8 &&
+    (form.class_name || "").length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +41,7 @@ function LengkapiProfilPage() {
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        // Jangan auto-verify jika admin yang harus memverifikasi
-        // is_verified: false,
+        class_name: form.class_name,
         updated_at: new Date().toISOString(),
       }, { onConflict: "id" });
 
@@ -78,17 +81,28 @@ function LengkapiProfilPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Email</label>
-              <input type="email" readOnly className="w-full rounded-xl border border-border bg-slate-100 px-4 py-3 text-sm text-muted-foreground outline-none cursor-not-allowed dark:bg-secondary/50"
-                value={form.email} />
-              <p className="text-[10px] text-muted-foreground">Email dari akun Google, tidak bisa diubah.</p>
-            </div>
-
-            <div className="space-y-2">
               <label className="text-xs font-bold uppercase text-muted-foreground">No. HP / WhatsApp</label>
               <input required minLength={8} inputMode="tel" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:bg-secondary"
                 value={form.phone} placeholder="08xxxxxxxxxx"
                 onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-muted-foreground">Pilih Kelas</label>
+              <select 
+                required 
+                className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:bg-secondary"
+                value={form.class_name}
+                onChange={e => setForm(p => ({ ...p, class_name: e.target.value }))}
+              >
+                <option value="">-- Pilih Kelas --</option>
+                <option value="TIA2">TIA2</option>
+                <option value="TIA4">TIA4</option>
+                <option value="TIA6">TIA6</option>
+                <option value="TIC2">TIC2</option>
+                <option value="TIC4">TIC4</option>
+                <option value="TIC6">TIC6</option>
+              </select>
             </div>
 
             <button type="submit" disabled={saving || !isComplete}

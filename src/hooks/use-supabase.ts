@@ -167,6 +167,15 @@ export async function submitForm(formData: any) {
   return data[0];
 }
 
+export async function deleteSubmission(id: string) {
+  const { error } = await supabase
+    .from("form_submissions")
+    .delete()
+    .eq("id", id);
+  
+  if (error) throw error;
+}
+
 export async function fetchEvents() {
   const { data, error } = await supabase
     .from("events")

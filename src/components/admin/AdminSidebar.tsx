@@ -4,6 +4,8 @@ import {
   LogOut, ArrowLeft, Camera, Ticket, X, ClipboardList, Menu
 } from "lucide-react";
 
+import { UserRole } from "@/hooks/use-auth";
+
 export type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "absensi" | "events" | "gallery" | "announcements" | "users";
 
 type Props = {
@@ -12,7 +14,7 @@ type Props = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   onLogout: () => void;
-  role: string;
+  role: UserRole | string;
 };
 
 const allTabs = [
@@ -29,7 +31,7 @@ const allTabs = [
 ] as const;
 
 export function AdminSidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout, role }: Props) {
-  const visibleTabs = allTabs.filter(t => t.roles.includes(role));
+  const visibleTabs = allTabs.filter(t => (t.roles as readonly string[]).includes(role));
 
   return (
     <>
@@ -51,9 +53,8 @@ export function AdminSidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLog
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as Tab); setIsOpen(false); }}
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                activeTab === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${activeTab === tab.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
             >
               <tab.icon className="h-4 w-4" />
               {tab.label}

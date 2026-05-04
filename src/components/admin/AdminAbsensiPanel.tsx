@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
-import { FileText, Search, Loader2 } from "lucide-react";
-import { fetchAbsensi, fetchDistinctCourseNames, fetchDistinctClassNames } from "@/hooks/use-supabase";
+import { FileText, Search, Loader2, Trash2 } from "lucide-react";
+import { fetchAbsensi, fetchDistinctCourseNames, fetchDistinctClassNames, deleteSubmission } from "@/hooks/use-supabase";
 
 export function AdminAbsensiPanel() {
   const [data, setData] = useState<any[]>([]);
@@ -10,6 +9,7 @@ export function AdminAbsensiPanel() {
   const [filterCourse, setFilterCourse] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [search, setSearch] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -19,6 +19,19 @@ export function AdminAbsensiPanel() {
     const result = await fetchAbsensi(Object.keys(filters).length > 0 ? filters : undefined);
     setData(result);
     setLoading(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus data absensi ini?")) return;
+    setDeleting(id);
+    try {
+      await deleteSubmission(id);
+      setData(prev => prev.filter(item => item.id !== id));
+    } catch (err) {
+      alert("Gagal menghapus data");
+    } finally {
+      setDeleting(null);
+    }
   };
 
   useEffect(() => {
@@ -112,13 +125,14 @@ export function AdminAbsensiPanel() {
               <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Course & Kelas</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">No HP</th>
               <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Tanggal</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+              <tr><td colSpan={5} className="px-6 py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="px-6 py-10 text-center text-muted-foreground">Tidak ada data absensi.</td></tr>
+              <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">Tidak ada data absensi.</td></tr>
             ) : filtered.map(item => (
               <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
@@ -139,6 +153,15 @@ export function AdminAbsensiPanel() {
                 <td className="px-6 py-4 text-sm">{item.phone}</td>
                 <td className="px-6 py-4 text-xs text-muted-foreground">
                   {new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button 
+                    disabled={deleting === item.id}
+                    onClick={() => handleDelete(item.id)}
+                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {deleting === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </button>
                 </td>
               </tr>
             ))}
