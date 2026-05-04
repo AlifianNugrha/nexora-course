@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
   Plus, Edit, Trash2, LogOut, ArrowLeft,
-  Image as ImageIcon, X, Menu, Camera, Ticket
+  Image as ImageIcon, X, Menu, Camera, Ticket, Cloud
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSidebar";
@@ -45,6 +45,8 @@ function AdminCMS() {
   const [categories, setCategories] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [driveSubmitting, setDriveSubmitting] = useState(false);
 
   // Auth check - now uses Supabase session + role
   useEffect(() => {
@@ -190,6 +192,68 @@ function AdminCMS() {
     }
   };
 
+  const handleConnectDrive = () => {
+    const client = (window as any).google.accounts.oauth2.initTokenClient({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "602508081764-1c920jj3qh75oikb8mt2r7smal114hkc.apps.googleusercontent.com",
+      scope: "https://www.googleapis.com/auth/drive.file",
+      callback: (response: any) => {
+        if (response.access_token) {
+          setGoogleToken(response.access_token);
+          alert("Koneksi Google Drive Berhasil!");
+        }
+      },
+    });
+    client.requestAccessToken();
+  };
+
+  const handleUploadToDrive = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !googleToken) return;
+    setDriveSubmitting(true);
+
+    try {
+      // 1. Metadata for file
+      const metadata = {
+        name: file.name,
+        mimeType: file.type,
+      };
+
+      // 2. Multipart body
+      const form = new FormData();
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", file);
+
+      // 3. Upload to Google Drive
+      const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+        method: "POST",
+        headers: new Headers({ Authorization: `Bearer ${googleToken}` }),
+        body: form,
+      });
+
+      const fileData = await uploadResponse.json();
+      if (fileData.error) throw new Error(fileData.error.message);
+
+      // 4. Set permission to PUBLIC (anyone with link)
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+        method: "POST",
+        headers: new Headers({
+          Authorization: `Bearer ${googleToken}`,
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ role: "reader", type: "anyone" }),
+      });
+
+      // 5. Update form data with the link
+      setFormData((prev: any) => ({ ...prev, link: fileData.webViewLink }));
+      alert("File berhasil diupload ke Google Drive dan diset Publik!");
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal upload ke Drive: ${err.message}`);
+    } finally {
+      setDriveSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar - role-based */}
@@ -205,6 +269,17 @@ function AdminCMS() {
       {/* Main */}
       <main className="flex-1 overflow-auto w-full lg:w-auto">
         <AdminHeader activeTab={activeTab} onMenuClick={() => setIsSidebarOpen(true)}>
+          <button
+            onClick={handleConnectDrive}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold shadow-lg transition-all hover:-translate-y-0.5 ${
+              googleToken
+                ? "bg-green-500 text-white shadow-green-500/20"
+                : "bg-white text-slate-700 ring-1 ring-border shadow-sm hover:bg-slate-50"
+            }`}
+          >
+            <Cloud className={`h-4 w-4 ${googleToken ? "animate-pulse" : ""}`} />
+            {googleToken ? "Drive Connected" : "Connect Drive"}
+          </button>
           {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && (
             <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
               <Plus className="h-4 w-4" /> Add New
@@ -481,10 +556,26 @@ function AdminCMS() {
                         onChange={(e) => setFormData((prev: any) => ({ ...prev, order: parseInt(e.target.value) }))} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase text-muted-foreground">Link (optional)</label>
-                      <input placeholder="https://youtube.com/..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
-                        value={formData.link || ""}
-                        onChange={(e) => setFormData((prev: any) => ({ ...prev, link: e.target.value }))} />
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Link / Video File</label>
+                      <div className="flex flex-col gap-2">
+                        <input placeholder="https://youtube.com/..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                          value={formData.link || ""}
+                          onChange={(e) => setFormData((prev: any) => ({ ...prev, link: e.target.value }))} />
+                        
+                        {googleToken ? (
+                          <div className="flex items-center gap-2">
+                            <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 py-2 text-[10px] font-bold text-primary transition-all hover:bg-primary/10">
+                              <Cloud className="h-3 w-3" />
+                              {driveSubmitting ? "Uploading to Drive..." : "Upload Video to Google Drive"}
+                              <input type="file" className="hidden" accept="video/*,application/pdf" onChange={handleUploadToDrive} disabled={driveSubmitting} />
+                            </label>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground italic text-center">
+                            Connect Google Drive di atas untuk upload video langsung.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">
