@@ -24,9 +24,15 @@ export const Route = createFileRoute("/materi/$courseId")({
       });
     }
 
-    // Check if user is enrolled in this course
-    const enrolled = session.user.user_metadata?.enrolled_courses || [];
-    if (!enrolled.includes(params.courseId)) {
+    // Check if user is enrolled in this course via database
+    const { data: enrollment } = await supabase
+      .from("form_submissions")
+      .select("id")
+      .eq("course", params.courseId)
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+
+    if (!enrollment) {
       throw redirect({
         to: "/course/$courseId",
         params: { courseId: params.courseId },

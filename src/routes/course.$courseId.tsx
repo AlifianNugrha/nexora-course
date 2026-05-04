@@ -250,8 +250,15 @@ function CourseDetail() {
 
   const handleAccess = async () => {
     if (user) {
-      const enrolled = user.user_metadata?.enrolled_courses || [];
-      if (enrolled.includes(courseId)) {
+      // Check database for enrollment (Real-time check)
+      const { data: enrollment } = await supabase
+        .from("form_submissions")
+        .select("id")
+        .eq("course", courseId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (enrollment) {
         navigate({ to: "/materi/$courseId", params: { courseId } });
       } else {
         setIsGateOpen(true);

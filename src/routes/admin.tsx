@@ -288,7 +288,8 @@ function AdminCMS() {
       // 7. Convert to Direct Link if it's an image
       let finalUrl = fileData.webViewLink;
       if (file.type.startsWith("image/")) {
-        finalUrl = `https://drive.google.com/uc?export=view&id=${fileData.id}`;
+        // Format ini jauh lebih stabil untuk menampilkan gambar Google Drive di website
+        finalUrl = `https://lh3.googleusercontent.com/d/${fileData.id}`;
       }
 
       // 8. Update form data
