@@ -206,18 +206,21 @@ function AdminCMS() {
     client.requestAccessToken();
   };
 
-  const handleUploadToDrive = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadToDrive = async (e: React.ChangeEvent<HTMLInputElement>, targetField: string, folderName?: string) => {
     const file = e.target.files?.[0];
     if (!file || !googleToken) return;
     setDriveSubmitting(true);
 
     try {
       const authHeader = new Headers({ Authorization: `Bearer ${googleToken}` });
-      const courseTitle = courses.find(c => c.id === formData.course_id)?.title || "General";
+      
+      // Determine folder path
+      let rootFolderName = "Nexora_Files";
+      let subFolderName = folderName || (activeTab === "materials" ? (courses.find(c => c.id === formData.course_id)?.title || "Materials") : activeTab);
 
-      // 1. Find or Create Root Folder "Nexora_Materials"
+      // 1. Find or Create Root Folder "Nexora_Files"
       let rootFolderId = "";
-      const rootSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='Nexora_Materials' and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const rootSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${rootFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
       const rootResult = await rootSearch.json();
       
       if (rootResult.files && rootResult.files.length > 0) {
@@ -226,78 +229,74 @@ function AdminCMS() {
         const createRoot = await fetch("https://www.googleapis.com/drive/v3/files", {
           method: "POST",
           headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
-          body: JSON.stringify({ name: "Nexora_Materials", mimeType: "application/vnd.google-apps.folder" }),
+          body: JSON.stringify({ name: rootFolderName, mimeType: "application/vnd.google-apps.folder" }),
         });
         const newRoot = await createRoot.json();
         rootFolderId = newRoot.id;
       }
 
-      // 2. Find or Create Course Folder inside Root
-      let courseFolderId = "";
-      const courseSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${courseTitle}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
-      const courseResult = await courseSearch.json();
+      // 2. Find or Create Sub Folder
+      let subFolderId = "";
+      const subSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${subFolderName}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const subResult = await subSearch.json();
 
-      if (courseResult.files && courseResult.files.length > 0) {
-        courseFolderId = courseResult.files[0].id;
+      if (subResult.files && subResult.files.length > 0) {
+        subFolderId = subResult.files[0].id;
       } else {
-        const createCourse = await fetch("https://www.googleapis.com/drive/v3/files", {
+        const createSub = await fetch("https://www.googleapis.com/drive/v3/files", {
           method: "POST",
           headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
-          body: JSON.stringify({ name: courseTitle, mimeType: "application/vnd.google-apps.folder", parents: [rootFolderId] }),
+          body: JSON.stringify({ name: subFolderName, mimeType: "application/vnd.google-apps.folder", parents: [rootFolderId] }),
         });
-        const newCourse = await createCourse.json();
-        courseFolderId = newCourse.id;
+        const newSub = await createSub.json();
+        subFolderId = newSub.id;
       }
 
-      // 3. Metadata for file with parents
+      // 3. Metadata for file
       const metadata = {
         name: file.name,
         mimeType: file.type,
-        parents: [courseFolderId],
+        parents: [subFolderId],
       };
 
       // 4. Multipart body
-      const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-      form.append("file", file);
+      const formBody = new FormData();
+      formBody.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      formBody.append("file", file);
 
       // 5. Upload to Google Drive
       const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
         method: "POST",
         headers: authHeader,
-        body: form,
+        body: formBody,
       });
 
       const fileData = await uploadResponse.json();
-      if (fileData.error) {
-        console.error("Google Drive Upload Error:", fileData.error);
-        throw new Error(fileData.error.message);
-      }
+      if (fileData.error) throw new Error(fileData.error.message);
 
-      console.log("File uploaded successfully:", fileData);
-
-      // 6. Set permission to PUBLIC (anyone with link)
+      // 6. Set permission to PUBLIC
       try {
         await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
           method: "POST",
-          headers: new Headers({
-            Authorization: `Bearer ${googleToken}`,
-            "Content-Type": "application/json",
-          }),
+          headers: new Headers({ Authorization: `Bearer ${googleToken}`, "Content-Type": "application/json" }),
           body: JSON.stringify({ role: "reader", type: "anyone" }),
         });
-        console.log("Permissions set to public successfully");
       } catch (permErr) {
-        console.warn("Failed to set public permission, but file was uploaded:", permErr);
-        // We don't throw here so the link still gets saved
+        console.warn("Permission set failed, continuing...", permErr);
       }
 
-      // 7. Update form data with the link
-      setFormData((prev: any) => ({ ...prev, link: fileData.webViewLink }));
-      alert(`Berhasil! File tersimpan di Folder: Nexora_Materials > ${courseTitle}`);
+      // 7. Convert to Direct Link if it's an image
+      let finalUrl = fileData.webViewLink;
+      if (file.type.startsWith("image/")) {
+        finalUrl = `https://drive.google.com/uc?export=view&id=${fileData.id}`;
+      }
+
+      // 8. Update form data
+      setFormData((prev: any) => ({ ...prev, [targetField]: finalUrl }));
+      alert(`Berhasil! Tersimpan di folder ${subFolderName}`);
     } catch (err: any) {
-      console.error("Full Upload Process Error:", err);
-      alert(`Gagal upload ke Drive: ${err.message || "Terjadi kesalahan tidak dikenal"}`);
+      console.error(err);
+      alert(`Gagal upload ke Drive: ${err.message}`);
     } finally {
       setDriveSubmitting(false);
     }
@@ -502,23 +501,67 @@ function AdminCMS() {
 
               {/* Thumbnail / Image */}
               {(activeTab === "categories" || activeTab === "courses" || activeTab === "events" || activeTab === "gallery") && (
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">{activeTab === "gallery" || activeTab === "events" ? "Image URL" : "Thumbnail"}</label>
-                  <div className="flex items-center gap-4">
-                    {(formData.thumbnail || formData.image_url) && <img src={formData.thumbnail || formData.image_url} className="h-16 w-16 rounded-xl object-cover border" />}
-                    <div className="flex-1 space-y-2">
-                      <input type="file" accept="image/*" onChange={handleUpload} className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary/10 file:text-primary" />
-                      <input
-                        className="w-full rounded-xl border border-border bg-slate-50 px-4 py-2 text-xs outline-none focus:border-primary"
-                        value={formData.thumbnail || formData.image_url || ""} placeholder="Or paste image URL"
-                        onChange={(e) => {
-                          const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
-                          setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
-                        }}
-                      />
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">
+                    {activeTab === "gallery" || activeTab === "events" ? "Image URL / Poster" : "Thumbnail Kelas"}
+                  </label>
+                  
+                  <div className="flex items-start gap-4 rounded-2xl border border-border/50 bg-slate-50/50 p-4">
+                    {(formData.thumbnail || formData.image_url) && (
+                      <img src={formData.thumbnail || formData.image_url} className="h-24 w-24 rounded-2xl object-cover border-2 border-white shadow-md" />
+                    )}
+                    
+                    <div className="flex-1 space-y-4">
+                      {/* Google Drive Section (Standalone) */}
+                      {googleToken ? (
+                        <div className="space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+                              const input = document.createElement("input");
+                              input.type = "file";
+                              input.accept = "image/*";
+                              input.onchange = (e: any) => handleUploadToDrive(e, field);
+                              input.click();
+                            }}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary-deep"
+                          >
+                            <Cloud className="h-4 w-4" />
+                            Upload ke Google Drive (Hemat Cloud)
+                          </button>
+                          <p className="text-[9px] text-muted-foreground italic px-1">File akan otomatis tersimpan rapi di folder Drive kamu.</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 text-center">
+                          <p className="text-[10px] font-medium text-primary">Connect Google Drive di atas untuk upload otomatis ke Drive.</p>
+                        </div>
+                      )}
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                        <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-white px-2">Atau</span></div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Upload Lokal
+                          <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+                        </label>
+                        <input
+                          className="flex-[1.5] rounded-xl border border-border bg-white px-4 py-2 text-xs outline-none focus:border-primary"
+                          value={formData.thumbnail || formData.image_url || ""} 
+                          placeholder="Paste Link Gambar..."
+                          onChange={(e) => {
+                            const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+                            setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                  {uploading && <p className="text-xs text-primary animate-pulse font-bold">Uploading...</p>}
+                  {uploading && <p className="text-[10px] text-primary animate-pulse font-bold uppercase tracking-wider">Uploading to Supabase...</p>}
                 </div>
               )}
 
@@ -642,7 +685,7 @@ function AdminCMS() {
                                   Upload File to Google Drive
                                 </>
                               )}
-                              <input type="file" className="hidden" onChange={handleUploadToDrive} disabled={driveSubmitting} />
+                              <input type="file" className="hidden" onChange={(e) => handleUploadToDrive(e, "link")} disabled={driveSubmitting} />
                             </label>
                           </div>
                         ) : (
