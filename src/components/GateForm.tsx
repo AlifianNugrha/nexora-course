@@ -76,19 +76,22 @@ export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLi
         class_name: form.className,
       });
 
-      setSubmitted(true);
-
-      // Update enrollment metadata in background (non-blocking)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          const enrolled = session.user.user_metadata?.enrolled_courses || [];
-          if (!enrolled.includes(courseId)) {
-            supabase.auth.updateUser({
-              data: { enrolled_courses: [...enrolled, courseId] }
-            });
-          }
+      // Update enrollment metadata and WAIT for it to finish
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const enrolled = session.user.user_metadata?.enrolled_courses || [];
+        if (!enrolled.includes(courseId)) {
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: { enrolled_courses: [...enrolled, courseId] }
+          });
+          if (updateError) throw updateError;
+          
+          // Force refresh session to ensure metadata is updated locally
+          await supabase.auth.refreshSession();
         }
-      });
+      }
+
+      setSubmitted(true);
     } catch (err: any) {
       console.error(err);
       alert(`Gagal memproses pendaftaran: ${err.message}`);
