@@ -640,7 +640,7 @@ export async function fetchLeaderboardByExam(examId: string) {
 
   const { data, error } = await supabase
     .from("exam_attempts")
-    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles(full_name, active_title)")
+    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles(full_name, active_title, email)")
     .eq("exam_id", examId)
     .eq("is_submitted", true);
 

@@ -36,14 +36,35 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 // ═══════════════════════════════════════════════════════════
+// EXAM LEADERBOARD CONFIG & HELPERS
+// ═══════════════════════════════════════════════════════════
+const COLOR_MAP: Record<string, { gradient: string; frame: { label: string; cls: string } }> = {
+  violet:  { gradient: 'from-violet-500 via-purple-500 to-pink-500',    frame: { label: 'Obsidian Frame', cls: 'text-purple-600 bg-purple-50 border-purple-200' } },
+  cyan:    { gradient: 'from-cyan-300 via-blue-400 to-indigo-500',       frame: { label: 'Sapphire Frame', cls: 'text-blue-600 bg-blue-50 border-blue-200' } },
+  gold:    { gradient: 'from-yellow-300 via-amber-400 to-orange-500',    frame: { label: 'Sunset Gold Frame', cls: 'text-amber-600 bg-amber-50 border-amber-200' } },
+  emerald: { gradient: 'from-emerald-400 via-teal-500 to-cyan-500',      frame: { label: 'Emerald Frame', cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' } },
+  rose:    { gradient: 'from-rose-400 via-pink-500 to-red-500',          frame: { label: 'Ruby Frame', cls: 'text-rose-600 bg-rose-50 border-rose-200' } },
+  indigo:  { gradient: 'from-indigo-400 via-purple-500 to-rose-500',     frame: { label: 'Cosmic Frame', cls: 'text-indigo-600 bg-indigo-50 border-indigo-200' } },
+  amber:   { gradient: 'from-amber-200 via-yellow-400 to-orange-400',    frame: { label: 'Amber Frame', cls: 'text-yellow-600 bg-yellow-50 border-yellow-200' } },
+  sky:     { gradient: 'from-sky-400 via-indigo-500 to-purple-600',      frame: { label: 'Deep Space Frame', cls: 'text-sky-600 bg-sky-50 border-sky-200' } },
+};
+
+const getBorderGradient = (color?: string | null): string => {
+  if (!color) return 'from-slate-200 via-slate-300 to-slate-100';
+  return COLOR_MAP[color]?.gradient ?? COLOR_MAP.violet.gradient;
+};
+
+// ═══════════════════════════════════════════════════════════
 // EXAM LEADERBOARD COMPONENT
 // ═══════════════════════════════════════════════════════════
-function ExamLeaderboard({ leaderboard, currentUserId, loading, examPassingScore }: {
+function ExamLeaderboard({ leaderboard, leaderboardBadges = {}, currentUserId, loading, examPassingScore }: {
   leaderboard: any[];
+  leaderboardBadges?: Record<string, any[]>;
   currentUserId?: string;
   loading: boolean;
   examPassingScore?: number;
 }) {
+  const { user } = useAuth();
   const medals = ['🥇', '🥈', '🥉'];
   const fmtTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -52,9 +73,9 @@ function ExamLeaderboard({ leaderboard, currentUserId, loading, examPassingScore
   };
 
   const podiumOrder = [
-    { rankIdx: 1, h: 'h-16 mt-4', medal: '🥈', bg: 'from-slate-100 to-slate-200' },
-    { rankIdx: 0, h: 'h-20',      medal: '🥇', bg: 'from-amber-100 to-yellow-200' },
-    { rankIdx: 2, h: 'h-12 mt-8', medal: '🥉', bg: 'from-orange-100 to-amber-200' },
+    { rankIdx: 1, h: 'h-[110px] mt-4', medal: '🥈', bg: 'from-slate-100 to-slate-200' },
+    { rankIdx: 0, h: 'h-[125px]',      medal: '🥇', bg: 'from-amber-100 to-yellow-200' },
+    { rankIdx: 2, h: 'h-[95px] mt-8', medal: '🥉', bg: 'from-orange-100 to-amber-200' },
   ];
 
   return (
@@ -86,24 +107,67 @@ function ExamLeaderboard({ leaderboard, currentUserId, loading, examPassingScore
         <>
           {/* Podium Top 3 */}
           {leaderboard.length >= 1 && (
-            <div className="grid grid-cols-3 gap-2 px-6 pt-6 pb-4 border-b bg-gradient-to-b from-amber-50/40 to-white">
+            <div className="grid grid-cols-3 gap-2 px-4 pt-6 pb-4 border-b bg-gradient-to-b from-amber-50/40 to-white">
               {podiumOrder.map(({ rankIdx, h, medal, bg }) => {
                 const entry = leaderboard[rankIdx];
                 if (!entry) return <div key={rankIdx} />;
                 const isMe = entry.user_id === currentUserId;
+                const userBadgesList = leaderboardBadges[entry.user_id] || [];
+                const activeBadge = userBadgesList.find(ub => ub.badges?.name === entry.user_profiles?.active_title)?.badges || null;
+                const avatarUrl = (isMe && user?.user_metadata?.avatar_url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.user_profiles?.full_name || 'U')}&background=f1f5f9&color=6366f1`;
+
                 return (
-                  <div key={rankIdx} className="flex flex-col items-center gap-1">
-                    <div className={`flex flex-col items-center justify-center w-full ${h} rounded-2xl bg-gradient-to-b ${bg} ${isMe ? 'ring-2 ring-primary' : ''} px-2 py-2 text-center`}>
-                      <span className="text-2xl">{medal}</span>
-                      <p className="text-[10px] font-extrabold text-slate-700 leading-tight mt-0.5 line-clamp-1">
+                  <div key={rankIdx} className="flex flex-col items-center gap-1.5">
+                    <div className={`flex flex-col items-center justify-center w-full ${h} rounded-2xl bg-gradient-to-b ${bg} ${isMe ? 'ring-2 ring-primary' : ''} px-2 py-2 text-center relative`}>
+                      
+                      {/* Framed profile picture for podium */}
+                      <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${getBorderGradient(activeBadge?.color)} p-[2px] shadow-sm mb-1`}>
+                        <div className="w-full h-full rounded-full overflow-hidden border border-white bg-slate-100">
+                          <img
+                            src={avatarUrl}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        {activeBadge && (
+                          <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm border border-white text-[8px] leading-none select-none">
+                            {activeBadge.icon}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="absolute top-1 right-1 text-sm">{medal}</span>
+                      
+                      <p className="text-[10px] font-extrabold text-slate-700 leading-tight line-clamp-1 mt-0.5">
                         {(entry.user_profiles?.full_name || 'User').split(' ')[0]}
                         {isMe ? ' 👈' : ''}
                       </p>
+                      
+                      {entry.user_profiles?.active_title && (
+                        <p className="text-[8px] text-primary/80 font-black truncate max-w-full" title={entry.user_profiles.active_title}>
+                          {entry.user_profiles.active_title}
+                        </p>
+                      )}
+
                       <p className={`text-xs font-black mt-0.5 ${
                         (examPassingScore != null ? entry.score >= examPassingScore : entry.score >= 70)
                           ? 'text-green-600' : 'text-red-500'
                       }`}>{entry.score}%</p>
                     </div>
+
+                    {/* Other badges for podium */}
+                    {userBadgesList.length > 0 && (
+                      <div className="flex items-center justify-center gap-0.5 flex-wrap max-w-full">
+                        {userBadgesList.slice(0, 3).map((ub: any) => (
+                          <span key={ub.id} className="text-[10px]" title={ub.badges?.name}>
+                            {ub.badges?.icon}
+                          </span>
+                        ))}
+                        {userBadgesList.length > 3 && (
+                          <span className="text-[8px] font-bold text-slate-400">+{userBadgesList.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+
                     <p className="text-[9px] text-muted-foreground font-medium">⏱ {fmtTime(entry.time_spent_seconds || 0)}</p>
                   </div>
                 );
@@ -127,6 +191,11 @@ function ExamLeaderboard({ leaderboard, currentUserId, loading, examPassingScore
                   const rank = idx + 1;
                   const isMe = entry.user_id === currentUserId;
                   const passed = examPassingScore != null ? entry.score >= examPassingScore : entry.score >= 70;
+                  
+                  const userBadgesList = leaderboardBadges[entry.user_id] || [];
+                  const activeBadge = userBadgesList.find(ub => ub.badges?.name === entry.user_profiles?.active_title)?.badges || null;
+                  const avatarUrl = (isMe && user?.user_metadata?.avatar_url) || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.user_profiles?.full_name || 'U')}&background=f1f5f9&color=6366f1`;
+
                   return (
                     <tr
                       key={entry.id}
@@ -138,20 +207,60 @@ function ExamLeaderboard({ leaderboard, currentUserId, loading, examPassingScore
                         {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary">
-                            {(entry.user_profiles?.full_name || 'U').charAt(0).toUpperCase()}
+                        <div className="flex items-center gap-3">
+                          
+                          {/* Framed profile picture */}
+                          <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${getBorderGradient(activeBadge?.color)} p-[2px] shadow-sm`}>
+                            <div className="w-full h-full rounded-full overflow-hidden border border-white bg-slate-100">
+                              <img
+                                src={avatarUrl}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            {activeBadge && (
+                              <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-sm border border-white text-[9px] leading-none select-none">
+                                {activeBadge.icon}
+                              </div>
+                            )}
                           </div>
+
                           <div>
-                            <p className="text-xs font-bold text-slate-800 flex items-center gap-1 flex-wrap">
-                              {entry.user_profiles?.full_name || 'Anonim'}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-800">
+                                {entry.user_profiles?.full_name || 'Anonim'}
+                              </span>
                               {isMe && (
                                 <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Kamu</span>
                               )}
-                            </p>
-                            {entry.user_profiles?.active_title && (
-                              <p className="text-[9px] text-primary/80 font-semibold mt-0.5">🏆 {entry.user_profiles.active_title}</p>
+                              {entry.user_profiles?.active_title && (
+                                <span className="inline-flex items-center gap-0.5 bg-primary/10 text-primary text-[9px] font-black px-2 py-0.5 rounded-full border border-primary/20">
+                                  {activeBadge?.icon || '🏆'} {entry.user_profiles.active_title}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Showcase other earned badges */}
+                            {userBadgesList.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1">
+                                {userBadgesList.map((ub: any) => {
+                                  const b = ub.badges;
+                                  if (!b) return null;
+                                  const isCurrentActive = b.name === entry.user_profiles?.active_title;
+                                  return (
+                                    <span 
+                                      key={ub.id} 
+                                      title={b.name} 
+                                      className={`inline-flex items-center justify-center h-5 w-5 rounded-full border text-[10px] bg-slate-50 cursor-help ${
+                                        isCurrentActive ? 'border-primary bg-primary/5' : 'border-slate-200'
+                                      }`}
+                                    >
+                                      {b.icon}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             )}
+
                           </div>
                         </div>
                       </td>
@@ -213,7 +322,37 @@ function StudentExamPage() {
 
   // Leaderboard
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboardBadges, setLeaderboardBadges] = useState<Record<string, any[]>>({});
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+
+  const loadLeaderboardData = async (targetExamId: string) => {
+    setLoadingLeaderboard(true);
+    try {
+      const lb = await fetchLeaderboardByExam(targetExamId);
+      setLeaderboard(lb);
+
+      if (lb.length > 0) {
+        const userIds = Array.from(new Set(lb.map((entry: any) => entry.user_id)));
+        const { data: badgesData, error: badgesError } = await supabase
+          .from("user_badges")
+          .select("user_id, earned_at, badges(*)")
+          .in("user_id", userIds);
+
+        if (!badgesError && badgesData) {
+          const grouped: Record<string, any[]> = {};
+          badgesData.forEach((row: any) => {
+            if (!grouped[row.user_id]) grouped[row.user_id] = [];
+            grouped[row.user_id].push(row);
+          });
+          setLeaderboardBadges(grouped);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading leaderboard badges:", err);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
 
   // Load Exam Meta Data
   useEffect(() => {
@@ -235,13 +374,7 @@ function StudentExamPage() {
           setQuestions(qData);
 
           // Load leaderboard
-          setLoadingLeaderboard(true);
-          try {
-            const lb = await fetchLeaderboardByExam(examId);
-            setLeaderboard(lb);
-          } finally {
-            setLoadingLeaderboard(false);
-          }
+          await loadLeaderboardData(examId);
         }
       } catch (err) {
         console.error("Error loading student exam:", err);
@@ -376,8 +509,7 @@ function StudentExamPage() {
       setAttemptCount(newCount);
 
       // Refresh leaderboard to reflect new submission
-      const freshLb = await fetchLeaderboardByExam(exam.id);
-      setLeaderboard(freshLb);
+      await loadLeaderboardData(exam.id);
 
       setPhase('result');
     } catch (err: any) {
@@ -550,6 +682,7 @@ function StudentExamPage() {
           {/* Leaderboard */}
           <ExamLeaderboard
             leaderboard={leaderboard}
+            leaderboardBadges={leaderboardBadges}
             currentUserId={user?.id}
             loading={loadingLeaderboard}
             examPassingScore={exam.passing_score}
@@ -826,6 +959,7 @@ function StudentExamPage() {
           {/* Leaderboard after result */}
           <ExamLeaderboard
             leaderboard={leaderboard}
+            leaderboardBadges={leaderboardBadges}
             currentUserId={user?.id}
             loading={loadingLeaderboard}
             examPassingScore={exam.passing_score}
