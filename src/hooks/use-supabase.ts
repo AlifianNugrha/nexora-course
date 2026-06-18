@@ -637,9 +637,11 @@ export async function fetchAttemptsByExam(examId: string) {
 
 export async function fetchLeaderboardByExam(examId: string) {
   if (!isValidUUID(examId)) return [];
+
+  // Use !left for LEFT JOIN so rows appear even when user_profiles row is missing
   const { data, error } = await supabase
     .from("exam_attempts")
-    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles:user_id(full_name, active_title)")
+    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles:user_id!left(full_name, active_title)")
     .eq("exam_id", examId)
     .eq("is_submitted", true);
 
@@ -652,15 +654,12 @@ export async function fetchLeaderboardByExam(examId: string) {
       .eq("exam_id", examId)
       .eq("is_submitted", true);
     if (fallbackError || !fallback) return [];
-    // Add empty user_profiles placeholder so the rest of the code still works
-    const withPlaceholder = fallback.map(row => ({
-      ...row,
-      user_profiles: { full_name: "Peserta", active_title: null }
-    }));
-    return withPlaceholder.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return (a.time_spent_seconds || 9999) - (b.time_spent_seconds || 9999);
-    });
+    return fallback
+      .map(row => ({ ...row, user_profiles: null }))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.time_spent_seconds || 9999) - (b.time_spent_seconds || 9999);
+      });
   }
 
   // Keep only the BEST attempt per user (highest score, then fastest time)
