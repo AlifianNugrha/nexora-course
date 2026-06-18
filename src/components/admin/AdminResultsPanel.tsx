@@ -21,13 +21,10 @@ interface ExamAttempt {
   finished_at: string;
   user_id: string;
   exam_id: string;
-  user_profiles: {
-    full_name: string | null;
-    email: string | null;
-    avatar_url: string | null;
-    active_title: string | null;
-    active_frame: string | null;
-  } | null;
+  // Flat fields from RPC
+  full_name: string | null;
+  email: string | null;
+  active_title: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -100,19 +97,15 @@ function ExamListView({ onSelect }: ExamListViewProps) {
       const exams = (examData as Exam[]) || [];
       setExams(exams);
 
-      // Fetch attempt counts per exam
+      // Fetch attempt counts per exam via RPC (bypasses RLS)
       if (exams.length > 0) {
         const counts: Record<string, number> = {};
         await Promise.all(
           exams.map(async (exam) => {
-            // Try without is_submitted filter first (more inclusive)
-            const { count, error } = await supabase
-              .from("exam_attempts")
-              .select("*", { count: "exact", head: true })
-              .eq("exam_id", exam.id)
-              .not("finished_at", "is", null);
+            const { data, error } = await supabase
+              .rpc("get_exam_attempt_count", { p_exam_id: exam.id });
             if (error) console.error("[AdminResults] count error:", error);
-            counts[exam.id] = count ?? 0;
+            counts[exam.id] = (data as number) ?? 0;
           })
         );
         setAttemptCounts(counts);
@@ -250,26 +243,9 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      // Fetch all attempts that have a score (finished), no is_submitted filter
+      // Use RPC function to bypass RLS — admin reads all attempts
       const { data, error } = await supabase
-        .from("exam_attempts")
-        .select(`
-          id,
-          score,
-          finished_at,
-          user_id,
-          exam_id,
-          user_profiles (
-            full_name,
-            email,
-            avatar_url,
-            active_title,
-            active_frame
-          )
-        `)
-        .eq("exam_id", exam.id)
-        .not("finished_at", "is", null)
-        .order("score", { ascending: false });
+        .rpc("get_exam_results", { p_exam_id: exam.id });
 
       if (error) {
         console.error("[AdminResults] fetch error:", error);
@@ -286,8 +262,8 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
     if (!search.trim()) return attempts;
     const q = search.toLowerCase();
     return attempts.filter(a => {
-      const name = a.user_profiles?.full_name?.toLowerCase() || "";
-      const email = a.user_profiles?.email?.toLowerCase() || "";
+      const name = a.full_name?.toLowerCase() || "";
+      const email = a.email?.toLowerCase() || "";
       return name.includes(q) || email.includes(q);
     });
   }, [attempts, search]);
@@ -382,11 +358,8 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
               <tbody className="divide-y divide-border">
                 {filtered.map((attempt, index) => {
                   const isPassed = attempt.score >= passingScore;
-                  const name = attempt.user_profiles?.full_name || attempt.user_profiles?.email || "Unknown";
-                  const avatar = attempt.user_profiles?.avatar_url;
-                  const frame = attempt.user_profiles?.active_frame;
-                  const title = attempt.user_profiles?.active_title;
-                  const frameColor = getFrameColor(frame);
+                  const name = attempt.full_name || attempt.email || "Unknown";
+                  const title = attempt.active_title;
 
                   return (
                     <tr key={attempt.id} className="hover:bg-slate-50/70 transition-colors">
@@ -402,21 +375,10 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
                       {/* Peserta */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div
-                            className="relative h-9 w-9 rounded-full p-[2px] shrink-0"
-                            style={{ background: `linear-gradient(135deg, ${frameColor}, ${frameColor}88)` }}
-                          >
-                            <div className="h-full w-full rounded-full overflow-hidden bg-slate-200">
-                              {avatar ? (
-                                <img src={avatar} alt={name} className="h-full w-full object-cover" />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-primary/40">
-                                  <span className="text-xs font-bold text-primary">
-                                    {name.charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                          <div className="h-9 w-9 rounded-full shrink-0 bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+                            <span className="text-xs font-bold text-primary">
+                              {name.charAt(0).toUpperCase()}
+                            </span>
                           </div>
                           <div>
                             <p className="font-semibold text-sm leading-tight">{name}</p>
@@ -425,8 +387,8 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
                                 {title}
                               </span>
                             ) : (
-                              attempt.user_profiles?.email && (
-                                <p className="text-[10px] text-muted-foreground">{attempt.user_profiles.email}</p>
+                              attempt.email && (
+                                <p className="text-[10px] text-muted-foreground">{attempt.email}</p>
                               )
                             )}
                           </div>
