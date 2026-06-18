@@ -18,7 +18,7 @@ interface Exam {
 interface ExamAttempt {
   id: string;
   score: number;
-  completed_at: string;
+  finished_at: string;
   user_id: string;
   exam_id: string;
   user_profiles: {
@@ -108,7 +108,8 @@ function ExamListView({ onSelect }: ExamListViewProps) {
             const { count } = await supabase
               .from("exam_attempts")
               .select("*", { count: "exact", head: true })
-              .eq("exam_id", exam.id);
+              .eq("exam_id", exam.id)
+              .eq("is_submitted", true);
             counts[exam.id] = count ?? 0;
           })
         );
@@ -252,7 +253,7 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
         .select(`
           id,
           score,
-          completed_at,
+          finished_at,
           user_id,
           exam_id,
           user_profiles (
@@ -264,6 +265,7 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
           )
         `)
         .eq("exam_id", exam.id)
+        .eq("is_submitted", true)
         .order("score", { ascending: false });
 
       setAttempts((data as any) || []);
@@ -441,7 +443,7 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3 shrink-0" />
-                          {new Date(attempt.completed_at).toLocaleDateString("id-ID", {
+                          {new Date(attempt.finished_at).toLocaleDateString("id-ID", {
                             day: "numeric", month: "short", year: "numeric",
                             hour: "2-digit", minute: "2-digit",
                           })}
