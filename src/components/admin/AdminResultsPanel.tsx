@@ -105,11 +105,13 @@ function ExamListView({ onSelect }: ExamListViewProps) {
         const counts: Record<string, number> = {};
         await Promise.all(
           exams.map(async (exam) => {
-            const { count } = await supabase
+            // Try without is_submitted filter first (more inclusive)
+            const { count, error } = await supabase
               .from("exam_attempts")
               .select("*", { count: "exact", head: true })
               .eq("exam_id", exam.id)
-              .eq("is_submitted", true);
+              .not("finished_at", "is", null);
+            if (error) console.error("[AdminResults] count error:", error);
             counts[exam.id] = count ?? 0;
           })
         );
@@ -248,7 +250,8 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data } = await supabase
+      // Fetch all attempts that have a score (finished), no is_submitted filter
+      const { data, error } = await supabase
         .from("exam_attempts")
         .select(`
           id,
@@ -265,9 +268,14 @@ function ExamResultView({ exam, onBack }: ExamResultViewProps) {
           )
         `)
         .eq("exam_id", exam.id)
-        .eq("is_submitted", true)
+        .not("finished_at", "is", null)
         .order("score", { ascending: false });
 
+      if (error) {
+        console.error("[AdminResults] fetch error:", error);
+      } else {
+        console.log("[AdminResults] attempts fetched:", data?.length, data);
+      }
       setAttempts((data as any) || []);
       setLoading(false);
     };
