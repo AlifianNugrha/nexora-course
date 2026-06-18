@@ -214,11 +214,13 @@ function ProfilPage() {
       <section className="bg-white dark:bg-card border-b border-border/50">
         <div className="mx-auto max-w-4xl px-4 py-8 sm:py-12 sm:px-6 flex items-center gap-4 sm:gap-8">
           {/* ── Profile Avatar with dynamic border frame ── */}
-          <div className={`relative flex h-20 w-20 sm:h-32 sm:w-32 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${getBorderGradient(activeBadge?.color)} p-[3px] sm:p-1 shadow-lg transition-all duration-500`}>
-            <img
-              src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user?.email}`}
-              className="h-full w-full rounded-full border-2 border-white object-cover bg-slate-100 dark:bg-secondary"
-            />
+          <div className={`relative flex h-20 w-20 sm:h-32 sm:w-32 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${getBorderGradient(activeBadge?.color)} p-[3px] sm:p-1.5 shadow-lg transition-all duration-500`}>
+            <div className="w-full h-full rounded-full overflow-hidden border-2 border-white bg-slate-100 dark:bg-secondary">
+              <img
+                src={user?.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user?.email}`}
+                className="h-full w-full object-cover"
+              />
+            </div>
             {/* Floating badge icon overlay */}
             {activeBadge && (
               <div className="absolute -bottom-1 -right-1 sm:bottom-0.5 sm:right-0.5 flex h-7 w-7 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white shadow-md border-2 border-white text-sm sm:text-2xl leading-none select-none">
@@ -456,15 +458,20 @@ function ProfilPage() {
                 {userBadges.map((ub) => {
                   const badge = ub.badges;
                   if (!badge) return null;
+                  const isActive = profile?.active_title === badge.name;
 
                   return (
                     <button
                       key={ub.id}
                       onClick={() => setSelectedBadgeDetail(badge)}
-                      className="relative border rounded-3xl p-5 flex flex-col items-center text-center transition-all duration-300 bg-white hover:border-slate-300 hover:-translate-y-1 shadow-soft"
+                      className={`relative border rounded-3xl p-5 flex flex-col items-center text-center transition-all duration-300 bg-white hover:-translate-y-1 shadow-soft ${
+                        isActive ? 'border-primary ring-2 ring-primary/20' : 'hover:border-slate-300'
+                      }`}
                     >
-                      <div className="absolute top-3 right-3 bg-green-100 text-green-700 rounded-full p-0.5 border border-green-200">
-                        <CheckCircle className="h-3.5 w-3.5" />
+                      <div className={`absolute top-3 right-3 rounded-full p-0.5 border ${
+                        isActive ? 'bg-primary text-white border-primary' : 'bg-green-100 text-green-700 border-green-200'
+                      }`}>
+                        {isActive ? <Check className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
                       </div>
 
                       {/* Gradient ring around badge icon */}
@@ -627,9 +634,35 @@ function ProfilPage() {
             <p className="text-xs text-slate-600 leading-relaxed px-2">{selectedBadgeDetail.description}</p>
 
             {isBadgeEarned(selectedBadgeDetail.id) ? (
-              <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-3 text-xs font-bold flex items-center justify-center gap-1">
-                <CheckCircle className="h-4 w-4 shrink-0" />
-                Kamu sudah membuka badge ini!
+              <div className="space-y-3">
+                <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-3 text-xs font-bold flex items-center justify-center gap-1">
+                  <CheckCircle className="h-4 w-4 shrink-0" />
+                  Kamu sudah membuka badge ini!
+                </div>
+                <button
+                  onClick={async () => {
+                    const isActive = profile?.active_title === selectedBadgeDetail.name;
+                    const nextTitle = isActive ? null : selectedBadgeDetail.name;
+                    try {
+                      const { error } = await supabase
+                        .from("user_profiles")
+                        .update({ active_title: nextTitle, updated_at: new Date().toISOString() })
+                        .eq("id", user?.id);
+                      if (error) throw error;
+                      await refreshProfile();
+                      setSelectedBadgeDetail(null);
+                    } catch (e: any) {
+                      alert(`Gagal menerapkan frame: ${e.message}`);
+                    }
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                    profile?.active_title === selectedBadgeDetail.name
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-primary hover:bg-primary/90 text-white shadow-primary/20 shadow-md'
+                  }`}
+                >
+                  {profile?.active_title === selectedBadgeDetail.name ? 'Lepas Frame & Title' : 'Gunakan Frame & Title ini'}
+                </button>
               </div>
             ) : (
               <div className="bg-slate-50 border border-slate-200 text-slate-500 rounded-2xl p-3 text-xs flex items-center justify-center gap-1">
