@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import {
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users,
-  LogOut, ArrowLeft, Camera, Ticket, X, ClipboardList, Menu, Award
+  LogOut, ArrowLeft, Camera, Ticket, X, ClipboardList, Menu, Award, ClipboardCheck
 } from "lucide-react";
 
 import { UserRole } from "@/hooks/use-auth";
 
-export type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "exams" | "absensi" | "events" | "gallery" | "announcements" | "users";
+export type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "exams" | "absensi" | "events" | "gallery" | "announcements" | "users" | "results";
 
 type Props = {
   activeTab: Tab;
@@ -29,6 +29,7 @@ const allTabs = [
   { id: "announcements", label: "Announcements", icon: FileText, roles: ["super_admin"] },
   { id: "absensi", label: "Absensi", icon: ClipboardList, roles: ["super_admin", "mentor"] },
   { id: "users", label: "Users", icon: Users, roles: ["super_admin"] },
+  { id: "results", label: "Hasil Ujian", icon: ClipboardCheck, roles: ["super_admin"] },
 ] as const;
 
 export function AdminSidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout, role }: Props) {

@@ -10,6 +10,7 @@ import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSid
 import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
 import { AdminAbsensiPanel } from "@/components/admin/AdminAbsensiPanel";
 import { AdminExamPanel } from "@/components/admin/AdminExamPanel";
+import { AdminResultsPanel } from "@/components/admin/AdminResultsPanel";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -330,7 +331,7 @@ function AdminCMS() {
             <Cloud className={`h-4 w-4 ${googleToken ? "animate-pulse" : ""}`} />
             {googleToken ? "Drive Connected" : "Connect Drive"}
           </button>
-          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && activeTab !== "exams" && (
+          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && activeTab !== "exams" && activeTab !== "results" && (
             <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
               <Plus className="h-4 w-4" /> Add New
             </button>
@@ -364,6 +365,8 @@ function AdminCMS() {
             <AdminUsersPanel />
           ) : activeTab === "exams" ? (
             <AdminExamPanel />
+          ) : activeTab === "results" ? (
+            <AdminResultsPanel />
           ) : (
             <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
               <table className="w-full text-left">

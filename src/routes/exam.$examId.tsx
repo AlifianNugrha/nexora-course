@@ -597,7 +597,7 @@ function StudentExamPage() {
                   <div className="space-y-1 mt-2">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground">Kesempatan</span>
                     <p className="text-sm font-extrabold text-slate-800">
-                      Unlimited (Retry Gratis)
+                      1 Kali Ujian
                     </p>
                   </div>
                 </div>
@@ -608,24 +608,26 @@ function StudentExamPage() {
                   <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-xs">
                     Ujian ini belum memiliki soal terdaftar. Silakan hubungi admin/mentor.
                   </div>
-                ) : isPassed ? (
+                ) : attemptCount > 0 ? (
                   <div className="space-y-3">
-                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs text-center font-bold">
-                      🎉 Anda telah lulus ujian ini dengan skor {bestScore}%. Anda tidak perlu mengerjakannya kembali.
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-xs text-center font-bold">
+                      ⚠️ Anda sudah mengerjakan soal
                     </div>
                   </div>
                 ) : (
-                  <button 
-                    onClick={handleStartExam}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[image:var(--gradient-primary)] px-6 py-4 text-sm font-bold text-white shadow-lg hover:shadow-glow hover:scale-[1.01] transition-all"
-                  >
-                    <Play className="h-4 w-4 fill-white" /> Mulai Kerjakan Ujian Sekarang
-                  </button>
-                )}
-                {!isPassed && questions.length > 0 && (
-                  <p className="text-center text-[10px] text-muted-foreground mt-2">
-                    Timer akan langsung berjalan saat Anda mengklik Mulai. Jangan tutup halaman!
-                  </p>
+                  <>
+                    <button 
+                      onClick={handleStartExam}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[image:var(--gradient-primary)] px-6 py-4 text-sm font-bold text-white shadow-lg hover:shadow-glow hover:scale-[1.01] transition-all"
+                    >
+                      <Play className="h-4 w-4 fill-white" /> Mulai Kerjakan Ujian Sekarang
+                    </button>
+                    {questions.length > 0 && (
+                      <p className="text-center text-[10px] text-muted-foreground mt-2">
+                        Timer akan langsung berjalan saat Anda mengklik Mulai. Jangan tutup halaman!
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -914,16 +916,10 @@ function StudentExamPage() {
                 <span>Waktu Tempuh: <strong className="text-slate-800 font-bold">{Math.floor((finalAttempt?.time_spent_seconds || 0) / 60)}m {(finalAttempt?.time_spent_seconds || 0) % 60}s</strong></span>
               </div>
 
-              <div className="flex gap-3 pt-6 max-w-sm mx-auto">
-                <button 
-                  onClick={handleResetToInfo}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-white border px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
-                >
-                  <RotateCcw className="h-4 w-4" /> Ulangi Ujian
-                </button>
+              <div className="pt-6 max-w-sm mx-auto">
                 <Link 
                   to={exam.course_id ? `/course/${exam.course_id}` : "/"}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-primary hover:bg-primary-deep px-4 py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 transition-all"
+                  className="w-full flex items-center justify-center gap-1.5 rounded-2xl bg-primary hover:bg-primary-deep px-4 py-3 text-xs font-bold text-white shadow-lg shadow-primary/20 transition-all"
                 >
                   Selesai
                 </Link>
