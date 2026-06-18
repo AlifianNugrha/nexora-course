@@ -61,14 +61,49 @@ CREATE POLICY "exam_attempts_write" ON exam_attempts
   FOR ALL USING (auth.uid() = user_id OR public.get_my_role() = 'super_admin')
   WITH CHECK (auth.uid() = user_id OR public.get_my_role() = 'super_admin');
 
--- 7. Sinkronisasikan profil yang hilang dari tabel auth.users
-INSERT INTO public.user_profiles (id, full_name, role, is_verified, email)
-SELECT id, COALESCE(raw_user_meta_data->>'full_name', email), 'user', false, email
-FROM auth.users
-ON CONFLICT (id) DO NOTHING;
+-- 7. Trigger otomatis saat ada user baru daftar (sign up)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, full_name, email, role, is_verified)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    new.email,
+    'user',
+    false
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET 
+    full_name = CASE 
+      WHEN user_profiles.full_name IS NULL OR user_profiles.full_name = '' OR user_profiles.full_name = 'Anonim' 
+      THEN COALESCE(EXCLUDED.full_name, user_profiles.full_name)
+      ELSE user_profiles.full_name
+    END,
+    email = COALESCE(EXCLUDED.email, user_profiles.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 7. Verifikasi policy yang aktif saat ini
-SELECT schemaname, tablename, policyname, cmd, qual
-FROM pg_policies
-WHERE tablename = 'user_profiles'
-ORDER BY cmd;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 8. Jalankan sinkronisasi paksa untuk memperbaiki profil user yang ada sekarang
+INSERT INTO public.user_profiles (id, full_name, role, is_verified, email)
+SELECT 
+  id, 
+  COALESCE(raw_user_meta_data->>'full_name', split_part(email, '@', 1)), 
+  'user', 
+  false, 
+  email
+FROM auth.users
+ON CONFLICT (id) DO UPDATE
+SET 
+  full_name = CASE 
+    WHEN user_profiles.full_name IS NULL OR user_profiles.full_name = '' OR user_profiles.full_name = 'Anonim' 
+    THEN COALESCE(EXCLUDED.full_name, user_profiles.full_name)
+    ELSE user_profiles.full_name
+  END,
+  email = COALESCE(EXCLUDED.email, user_profiles.email);
