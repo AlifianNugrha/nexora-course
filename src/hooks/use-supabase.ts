@@ -642,7 +642,26 @@ export async function fetchLeaderboardByExam(examId: string) {
     .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles:user_id(full_name, active_title)")
     .eq("exam_id", examId)
     .eq("is_submitted", true);
-  if (error) return [];
+
+  if (error) {
+    console.error("fetchLeaderboardByExam error:", error);
+    // Fallback: fetch without the join so at least we get scores
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("exam_attempts")
+      .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at")
+      .eq("exam_id", examId)
+      .eq("is_submitted", true);
+    if (fallbackError || !fallback) return [];
+    // Add empty user_profiles placeholder so the rest of the code still works
+    const withPlaceholder = fallback.map(row => ({
+      ...row,
+      user_profiles: { full_name: "Peserta", active_title: null }
+    }));
+    return withPlaceholder.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.time_spent_seconds || 9999) - (b.time_spent_seconds || 9999);
+    });
+  }
 
   // Keep only the BEST attempt per user (highest score, then fastest time)
   const bestPerUser = new Map<string, any>();

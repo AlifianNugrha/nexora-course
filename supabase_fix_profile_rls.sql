@@ -51,7 +51,17 @@ RETURNS TEXT AS $$
   SELECT role FROM public.user_profiles WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- 6. Sinkronisasikan profil yang hilang dari tabel auth.users
+-- 6. PERBAIKAN: RLS exam_attempts agar leaderboard bisa diakses oleh semua user yang login
+DROP POLICY IF EXISTS "Users manage own attempts" ON exam_attempts;
+
+CREATE POLICY "exam_attempts_select" ON exam_attempts
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "exam_attempts_write" ON exam_attempts
+  FOR ALL USING (auth.uid() = user_id OR public.get_my_role() = 'super_admin')
+  WITH CHECK (auth.uid() = user_id OR public.get_my_role() = 'super_admin');
+
+-- 7. Sinkronisasikan profil yang hilang dari tabel auth.users
 INSERT INTO public.user_profiles (id, full_name, role, is_verified, email)
 SELECT id, COALESCE(raw_user_meta_data->>'full_name', email), 'user', false, email
 FROM auth.users
