@@ -15,6 +15,7 @@ export type UserProfile = {
   division_name?: string | null;
   is_verified: boolean;
   created_at: string;
+  active_title: string | null;
 };
 
 type AuthContextType = {
@@ -61,6 +62,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     division_name: data.categories?.name || null,
     is_verified: data.is_verified,
     created_at: data.created_at,
+    active_title: data.active_title || null,
   };
 }
 

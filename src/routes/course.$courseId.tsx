@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, BookOpen, User, CheckCircle2, Lock, Calendar, X, Loader2, Award } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { fetchCourseById, fetchSchedulesByCourse } from "@/hooks/use-supabase";
+import { fetchCourseById, fetchSchedulesByCourse, fetchExamsByCourseId } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "@tanstack/react-router";
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/course/$courseId")({
   component: CourseDetail,
 });
 
-function DesktopCourseDetail({ course, sessions, onAccess }: { course: any, sessions: any[], onAccess: () => void }) {
+function DesktopCourseDetail({ course, sessions, onAccess, exams }: { course: any, sessions: any[], onAccess: () => void, exams: any[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -143,6 +143,44 @@ function DesktopCourseDetail({ course, sessions, onAccess }: { course: any, sess
                 ))
               )}
             </div>
+
+            {/* Course Exams Section */}
+            <h2 className="text-2xl font-bold tracking-tight text-primary-deep mt-10">
+              Ujian Kelulusan
+            </h2>
+            <div className="mt-5 space-y-3">
+              {exams.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  Belum ada ujian kelulusan untuk kelas ini.
+                </p>
+              ) : (
+                exams.map((exam: any) => (
+                  <div
+                    key={exam.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card p-5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-soft">
+                        <Award className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{exam.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {exam.duration_minutes} Menit • Batas KKM: {exam.passing_score}%
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      to="/exam/$examId"
+                      params={{ examId: exam.id }}
+                      className="rounded-xl bg-primary hover:bg-primary-deep text-xs font-bold text-white px-4 py-2 shadow-md transition-all"
+                    >
+                      Mulai
+                    </Link>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -152,7 +190,7 @@ function DesktopCourseDetail({ course, sessions, onAccess }: { course: any, sess
   );
 }
 
-function MobileCourseDetail({ course, sessions, onAccess }: { course: any, sessions: any[], onAccess: () => void }) {
+function MobileCourseDetail({ course, sessions, onAccess, exams }: { course: any, sessions: any[], onAccess: () => void, exams: any[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-background pb-20">
       <SiteHeader />
@@ -243,6 +281,43 @@ function MobileCourseDetail({ course, sessions, onAccess }: { course: any, sessi
             </ul>
          </div>
       </section>
+
+      {/* Mobile Course Exams Section */}
+      <section className="mt-2 bg-white px-4 py-5 shadow-sm dark:bg-card">
+         <div className="mx-auto max-w-3xl">
+            <h2 className="mb-4 text-sm font-bold text-foreground">Ujian Kelulusan</h2>
+            <div className="grid gap-3">
+               {exams.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                     Belum ada ujian untuk kelas ini.
+                  </p>
+               ) : (
+                  exams.map((exam) => (
+                     <div key={exam.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/50 p-4 shadow-[0_2px_10px_0_rgba(0,0,0,0.02)]">
+                        <div className="flex items-center gap-2.5">
+                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <Award className="h-4 w-4" />
+                           </div>
+                           <div>
+                              <p className="text-xs font-bold text-foreground">{exam.title}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                 {exam.duration_minutes} Menit • Batas KKM: {exam.passing_score}%
+                              </p>
+                           </div>
+                        </div>
+                        <Link
+                           to="/exam/$examId"
+                           params={{ examId: exam.id }}
+                           className="rounded-lg bg-primary text-[10px] font-bold text-white px-3.5 py-1.5 shadow-sm"
+                        >
+                           Mulai
+                        </Link>
+                     </div>
+                  ))
+               )}
+            </div>
+         </div>
+      </section>
     </div>
   );
 }
@@ -251,6 +326,7 @@ function CourseDetail() {
   const { courseId } = Route.useParams();
   const [course, setCourse] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const { user, profile } = useAuth();
@@ -312,6 +388,8 @@ function CourseDetail() {
         if (courseData) {
           const schedulesData = await fetchSchedulesByCourse(courseId);
           setSessions(schedulesData);
+          const examsData = await fetchExamsByCourseId(courseId);
+          setExams(examsData);
         }
       } catch (err) {
         console.error("Error loading course:", err);
@@ -351,10 +429,10 @@ function CourseDetail() {
   return (
     <>
       <div className="lg:hidden">
-        <MobileCourseDetail course={course} sessions={sessions} onAccess={handleAccess} />
+        <MobileCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} />
       </div>
       <div className="hidden lg:block">
-        <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} />
+        <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} />
       </div>
 
       {submitting && (

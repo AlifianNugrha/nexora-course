@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSidebar";
 import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
 import { AdminAbsensiPanel } from "@/components/admin/AdminAbsensiPanel";
+import { AdminExamPanel } from "@/components/admin/AdminExamPanel";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -329,7 +330,7 @@ function AdminCMS() {
             <Cloud className={`h-4 w-4 ${googleToken ? "animate-pulse" : ""}`} />
             {googleToken ? "Drive Connected" : "Connect Drive"}
           </button>
-          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && (
+          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && activeTab !== "exams" && (
             <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
               <Plus className="h-4 w-4" /> Add New
             </button>
@@ -361,6 +362,8 @@ function AdminCMS() {
             <AdminAbsensiPanel />
           ) : activeTab === "users" ? (
             <AdminUsersPanel />
+          ) : activeTab === "exams" ? (
+            <AdminExamPanel />
           ) : (
             <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
               <table className="w-full text-left">

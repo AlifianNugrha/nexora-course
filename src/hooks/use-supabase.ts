@@ -269,15 +269,21 @@ export async function updateUserProfile(userId: string, updates: {
   division_id?: string | null;
   is_verified?: boolean;
   full_name?: string;
+  active_title?: string | null;
 }) {
   const { data, error } = await supabase
     .from("user_profiles")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", userId)
+    .upsert(
+      { id: userId, ...updates, updated_at: new Date().toISOString() },
+      { onConflict: "id" }
+    )
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("updateUserProfile error:", error);
+    throw error;
+  }
   return data;
 }
 
@@ -409,4 +415,432 @@ export async function fetchDistinctClassNames(courseName?: string) {
     if (row.class_name) names.add(row.class_name);
   });
   return Array.from(names).sort();
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXAM SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+export async function fetchExams() {
+  const { data, error } = await supabase
+    .from("exams")
+    .select("*, courses(id, title)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchExamById(id: string) {
+  if (!isValidUUID(id)) return null;
+  const { data, error } = await supabase
+    .from("exams")
+    .select("*, courses(id, title)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) { console.error("Error fetching exam:", error); return null; }
+  return data;
+}
+
+export async function fetchExamsByCourseId(courseId: string) {
+  if (!isValidUUID(courseId)) return [];
+  const { data, error } = await supabase
+    .from("exams")
+    .select("*")
+    .eq("course_id", courseId)
+    .eq("is_published", true)
+    .order("created_at", { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+export async function createExam(examData: any) {
+  const { data, error } = await supabase
+    .from("exams")
+    .insert([examData])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateExam(id: string, examData: any) {
+  const { data, error } = await supabase
+    .from("exams")
+    .update({ ...examData, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteExam(id: string) {
+  const { error } = await supabase.from("exams").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXAM QUESTIONS
+// ═══════════════════════════════════════════════════════════
+
+export async function fetchQuestionsByExamId(examId: string) {
+  if (!isValidUUID(examId)) return [];
+  const { data, error } = await supabase
+    .from("exam_questions")
+    .select("*")
+    .eq("exam_id", examId)
+    .order("order", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createQuestion(questionData: any) {
+  const { data, error } = await supabase
+    .from("exam_questions")
+    .insert([questionData])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateQuestion(id: string, questionData: any) {
+  const { data, error } = await supabase
+    .from("exam_questions")
+    .update(questionData)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteQuestion(id: string) {
+  const { error } = await supabase.from("exam_questions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function bulkCreateQuestions(examId: string, questions: any[]) {
+  const rows = questions.map((q, i) => ({
+    exam_id: examId,
+    question: q.question,
+    option_a: q.option_a,
+    option_b: q.option_b,
+    option_c: q.option_c,
+    option_d: q.option_d,
+    correct_answer: q.correct_answer.toLowerCase(),
+    order: i + 1,
+    points: q.points || 1,
+  }));
+  const { data, error } = await supabase
+    .from("exam_questions")
+    .insert(rows)
+    .select();
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchQuestionCountByExamId(examId: string) {
+  const { count, error } = await supabase
+    .from("exam_questions")
+    .select("*", { count: "exact", head: true })
+    .eq("exam_id", examId);
+  if (error) return 0;
+  return count || 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXAM ATTEMPTS & ANSWERS
+// ═══════════════════════════════════════════════════════════
+
+export async function createAttempt(examId: string, userId: string) {
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .insert([{ exam_id: examId, user_id: userId, started_at: new Date().toISOString() }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function submitAttempt(
+  attemptId: string,
+  answers: { question_id: string; selected_answer: string | null }[],
+  questions: any[],
+  timeSpentSeconds: number
+) {
+  // 1. Grade answers
+  const gradedAnswers = answers.map((ans) => {
+    const question = questions.find((q: any) => q.id === ans.question_id);
+    const isCorrect = question
+      ? ans.selected_answer === question.correct_answer
+      : false;
+    return {
+      attempt_id: attemptId,
+      question_id: ans.question_id,
+      selected_answer: ans.selected_answer,
+      is_correct: isCorrect,
+    };
+  });
+
+  // 2. Insert answers
+  const { error: ansError } = await supabase
+    .from("exam_answers")
+    .insert(gradedAnswers);
+  if (ansError) throw ansError;
+
+  // 3. Calculate score
+  const totalCorrect = gradedAnswers.filter((a) => a.is_correct).length;
+  const totalQuestions = questions.length;
+  const score = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
+
+  // 4. Update attempt
+  const { data: attempt, error: attemptError } = await supabase
+    .from("exam_attempts")
+    .update({
+      score: Math.round(score * 100) / 100,
+      total_correct: totalCorrect,
+      total_questions: totalQuestions,
+      finished_at: new Date().toISOString(),
+      is_submitted: true,
+      time_spent_seconds: timeSpentSeconds,
+    })
+    .eq("id", attemptId)
+    .select()
+    .single();
+  if (attemptError) throw attemptError;
+
+  return attempt;
+}
+
+export async function fetchAttemptsByUser(userId: string) {
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("*, exams(id, title, course_id, passing_score, duration_minutes, courses(id, title))")
+    .eq("user_id", userId)
+    .eq("is_submitted", true)
+    .order("finished_at", { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+export async function fetchAttemptsByExam(examId: string) {
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("*, user_profiles:user_id(full_name)")
+    .eq("exam_id", examId)
+    .eq("is_submitted", true)
+    .order("score", { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+export async function fetchLeaderboardByExam(examId: string) {
+  if (!isValidUUID(examId)) return [];
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles:user_id(full_name, active_title)")
+    .eq("exam_id", examId)
+    .eq("is_submitted", true);
+  if (error) return [];
+
+  // Keep only the BEST attempt per user (highest score, then fastest time)
+  const bestPerUser = new Map<string, any>();
+  for (const row of (data || [])) {
+    const existing = bestPerUser.get(row.user_id);
+    if (!existing) {
+      bestPerUser.set(row.user_id, row);
+    } else {
+      const isBetter = row.score > existing.score ||
+        (row.score === existing.score && (row.time_spent_seconds || 9999) < (existing.time_spent_seconds || 9999));
+      if (isBetter) bestPerUser.set(row.user_id, row);
+    }
+  }
+
+  // Sort: score DESC, then time ASC
+  return Array.from(bestPerUser.values()).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return (a.time_spent_seconds || 9999) - (b.time_spent_seconds || 9999);
+  });
+}
+
+export async function fetchBestScore(examId: string, userId: string) {
+  const { data, error } = await supabase
+    .from("exam_attempts")
+    .select("score")
+    .eq("exam_id", examId)
+    .eq("user_id", userId)
+    .eq("is_submitted", true)
+    .order("score", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.score;
+}
+
+export async function fetchAttemptDetail(attemptId: string) {
+  const { data: attempt, error: aErr } = await supabase
+    .from("exam_attempts")
+    .select("*, exams(id, title, passing_score, course_id)")
+    .eq("id", attemptId)
+    .single();
+  if (aErr) throw aErr;
+
+  const { data: answers, error: ansErr } = await supabase
+    .from("exam_answers")
+    .select("*, exam_questions(*)")
+    .eq("attempt_id", attemptId);
+  if (ansErr) throw ansErr;
+
+  return { attempt, answers: answers || [] };
+}
+
+export async function fetchUserAttemptCountForExam(examId: string, userId: string) {
+  const { count, error } = await supabase
+    .from("exam_attempts")
+    .select("*", { count: "exact", head: true })
+    .eq("exam_id", examId)
+    .eq("user_id", userId)
+    .eq("is_submitted", true);
+  if (error) return 0;
+  return count || 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+// BADGE SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+export async function fetchAllBadges() {
+  const { data, error } = await supabase
+    .from("badges")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) return [];
+  return data || [];
+}
+
+export async function fetchUserBadges(userId: string) {
+  const { data, error } = await supabase
+    .from("user_badges")
+    .select("*, badges(*)")
+    .eq("user_id", userId)
+    .order("earned_at", { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+
+async function awardBadge(userId: string, badgeSlug: string, examId?: string | null) {
+  // Get badge by slug
+  const { data: badge } = await supabase
+    .from("badges")
+    .select("id")
+    .eq("slug", badgeSlug)
+    .single();
+  if (!badge) return null;
+
+  // Insert (ignore conflict = already earned)
+  const { data, error } = await supabase
+    .from("user_badges")
+    .upsert(
+      {
+        user_id: userId,
+        badge_id: badge.id,
+        exam_id: examId || null,
+        earned_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,badge_id,exam_id" }
+    )
+    .select("*, badges(*)")
+    .single();
+  if (error) { console.error("Badge award error:", error); return null; }
+  return data;
+}
+
+export async function checkAndAwardBadges(
+  userId: string,
+  examId: string,
+  score: number,
+  _timeSpentSeconds: number,
+  _durationMinutes: number
+): Promise<any[]> {
+  const newBadges: any[] = [];
+
+  // Award ONLY the custom badge configured by admin for this specific exam
+  // Admin sets the badge via Badge Settings in AdminExamPanel
+  try {
+    const { data: examDataObj } = await supabase
+      .from("exams")
+      .select("passing_score")
+      .eq("id", examId)
+      .maybeSingle();
+
+    const minPass = examDataObj?.passing_score ?? 70;
+    if (score >= minPass) {
+      // Look for badge with slug `exam_{examId}` (created by admin via Badge Settings)
+      const { data: customBadge } = await supabase
+        .from("badges")
+        .select("slug")
+        .eq("slug", `exam_${examId}`)
+        .maybeSingle();
+
+      if (customBadge) {
+        const b = await awardBadge(userId, customBadge.slug, examId);
+        if (b) newBadges.push(b);
+      }
+      // No badge configured for this exam = no badge awarded (expected behavior)
+    }
+  } catch (err) {
+    console.error("Error checking custom exam badge:", err);
+  }
+
+  return newBadges;
+}
+
+export async function updateActiveTitle(userId: string, title: string | null) {
+  const { error } = await supabase
+    .from("user_profiles")
+    .update({ active_title: title, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (error) {
+    console.error("updateActiveTitle error:", error);
+    throw error;
+  }
+}
+
+export async function fetchUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("*, categories:division_id(name)")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+export async function fetchExamBadge(examId: string) {
+  const { data, error } = await supabase
+    .from("badges")
+    .select("*")
+    .eq("slug", `exam_${examId}`)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+export async function saveExamBadge(examId: string, badgeData: { name: string, icon: string, description: string, color?: string }) {
+  const slug = `exam_${examId}`;
+  const { data, error } = await supabase
+    .from("badges")
+    .upsert({
+      slug,
+      name: badgeData.name,
+      icon: badgeData.icon,
+      description: badgeData.description,
+      color: badgeData.color || "violet",
+      category: "exam"
+    }, { onConflict: "slug" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }

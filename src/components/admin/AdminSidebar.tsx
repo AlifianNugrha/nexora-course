@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import {
   LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users,
-  LogOut, ArrowLeft, Camera, Ticket, X, ClipboardList, Menu
+  LogOut, ArrowLeft, Camera, Ticket, X, ClipboardList, Menu, Award
 } from "lucide-react";
 
 import { UserRole } from "@/hooks/use-auth";
 
-export type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "absensi" | "events" | "gallery" | "announcements" | "users";
+export type Tab = "dashboard" | "categories" | "courses" | "schedules" | "materials" | "exams" | "absensi" | "events" | "gallery" | "announcements" | "users";
 
 type Props = {
   activeTab: Tab;
@@ -23,6 +23,7 @@ const allTabs = [
   { id: "courses", label: "Courses", icon: BookOpen, roles: ["super_admin", "mentor"] },
   { id: "schedules", label: "Schedules", icon: Calendar, roles: ["super_admin", "mentor"] },
   { id: "materials", label: "Materials", icon: FileText, roles: ["super_admin", "mentor"] },
+  { id: "exams", label: "Exams", icon: Award, roles: ["super_admin", "mentor"] },
   { id: "events", label: "Events", icon: Ticket, roles: ["super_admin"] },
   { id: "gallery", label: "Gallery", icon: Camera, roles: ["super_admin"] },
   { id: "announcements", label: "Announcements", icon: FileText, roles: ["super_admin"] },

@@ -20,6 +20,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MateriCourseIdRouteImport } from './routes/materi.$courseId'
 import { Route as KategoriSlugRouteImport } from './routes/kategori.$slug'
+import { Route as ExamExamIdRouteImport } from './routes/exam.$examId'
 import { Route as EventSuccessRouteImport } from './routes/event.success'
 import { Route as EventEventIdRouteImport } from './routes/event.$eventId'
 import { Route as CourseCourseIdRouteImport } from './routes/course.$courseId'
@@ -79,6 +80,11 @@ const KategoriSlugRoute = KategoriSlugRouteImport.update({
   path: '/kategori/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExamExamIdRoute = ExamExamIdRouteImport.update({
+  id: '/exam/$examId',
+  path: '/exam/$examId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventSuccessRoute = EventSuccessRouteImport.update({
   id: '/event/success',
   path: '/event/success',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/course/$courseId': typeof CourseCourseIdRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/event/success': typeof EventSuccessRoute
+  '/exam/$examId': typeof ExamExamIdRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/course/$courseId': typeof CourseCourseIdRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/event/success': typeof EventSuccessRoute
+  '/exam/$examId': typeof ExamExamIdRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/course/$courseId': typeof CourseCourseIdRoute
   '/event/$eventId': typeof EventEventIdRoute
   '/event/success': typeof EventSuccessRoute
+  '/exam/$examId': typeof ExamExamIdRoute
   '/kategori/$slug': typeof KategoriSlugRoute
   '/materi/$courseId': typeof MateriCourseIdRoute
 }
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/course/$courseId'
     | '/event/$eventId'
     | '/event/success'
+    | '/exam/$examId'
     | '/kategori/$slug'
     | '/materi/$courseId'
   fileRoutesByTo: FileRoutesByTo
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
     | '/course/$courseId'
     | '/event/$eventId'
     | '/event/success'
+    | '/exam/$examId'
     | '/kategori/$slug'
     | '/materi/$courseId'
   id:
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/course/$courseId'
     | '/event/$eventId'
     | '/event/success'
+    | '/exam/$examId'
     | '/kategori/$slug'
     | '/materi/$courseId'
   fileRoutesById: FileRoutesById
@@ -208,6 +220,7 @@ export interface RootRouteChildren {
   CourseCourseIdRoute: typeof CourseCourseIdRoute
   EventEventIdRoute: typeof EventEventIdRoute
   EventSuccessRoute: typeof EventSuccessRoute
+  ExamExamIdRoute: typeof ExamExamIdRoute
   KategoriSlugRoute: typeof KategoriSlugRoute
   MateriCourseIdRoute: typeof MateriCourseIdRoute
 }
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KategoriSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/exam/$examId': {
+      id: '/exam/$examId'
+      path: '/exam/$examId'
+      fullPath: '/exam/$examId'
+      preLoaderRoute: typeof ExamExamIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/event/success': {
       id: '/event/success'
       path: '/event/success'
@@ -328,6 +348,7 @@ const rootRouteChildren: RootRouteChildren = {
   CourseCourseIdRoute: CourseCourseIdRoute,
   EventEventIdRoute: EventEventIdRoute,
   EventSuccessRoute: EventSuccessRoute,
+  ExamExamIdRoute: ExamExamIdRoute,
   KategoriSlugRoute: KategoriSlugRoute,
   MateriCourseIdRoute: MateriCourseIdRoute,
 }
