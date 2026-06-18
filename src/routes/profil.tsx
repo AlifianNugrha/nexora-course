@@ -28,7 +28,6 @@ function ProfilPage() {
   const [activeTab, setActiveTab] = useState<"kelas" | "sertifikat" | "ujian" | "badges">("kelas");
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState("");
-  const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
@@ -54,9 +53,8 @@ function ProfilPage() {
   useEffect(() => {
     if (user) {
       setNewName(profile?.full_name || user.user_metadata?.full_name || "");
-      setSelectedTitle(profile?.active_title || null);
     }
-  }, [user, profile?.active_title, profile?.full_name, isEditing]);
+  }, [user, profile?.full_name, isEditing]);
 
   const fetchEnrolledCourses = async () => {
     setLoadingCourses(true);
@@ -120,7 +118,6 @@ function ProfilPage() {
         .from("user_profiles")
         .update({
           full_name: newName.trim(),
-          active_title: selectedTitle,
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id)
@@ -141,7 +138,6 @@ function ProfilPage() {
           .insert({
             id: user.id,
             full_name: newName.trim(),
-            active_title: selectedTitle,
             email: user.email,
             role: "user",
             is_verified: false,
@@ -538,65 +534,6 @@ function ProfilPage() {
                   className="w-full rounded-xl border border-border bg-slate-50 px-4 py-2.5 text-sm focus:border-primary focus:outline-none"
                   placeholder="Masukkan nama lengkap"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase">Title &amp; Border Frame Profil</label>
-                <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto pr-0.5">
-                  {/* No Title Option */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTitle(null)}
-                    className={`flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-all ${
-                      !selectedTitle ? 'border-primary bg-primary/5' : 'border-border hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 text-xs text-white font-bold shadow-sm">—</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-700">Tanpa Title</p>
-                      <p className="text-[10px] text-slate-400">Border default Nexora</p>
-                    </div>
-                    {!selectedTitle && <Check className="h-4 w-4 text-primary shrink-0" />}
-                  </button>
-
-                  {/* Badge title options */}
-                  {userBadges.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border p-4 text-center text-[10px] text-muted-foreground">
-                      Belum ada badge terbuka. Selesaikan ujian untuk unlock title!
-                    </div>
-                  ) : userBadges.map((ub) => {
-                    const badge = ub.badges;
-                    if (!badge) return null;
-                    const isSelected = selectedTitle === badge.name;
-                    const frame = getFrameLabel(badge.color);
-                    return (
-                      <button
-                        key={ub.id}
-                        type="button"
-                        onClick={() => setSelectedTitle(badge.name)}
-                        className={`flex items-center gap-3 rounded-xl border-2 px-3 py-2.5 text-left transition-all ${
-                          isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-slate-300'
-                        }`}
-                      >
-                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr ${getBorderGradient(badge.color)} text-base shadow-sm`}>
-                          {badge.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-700 truncate">{badge.name}</p>
-                          {frame && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${frame.cls}`}>
-                              ✦ {frame.label}
-                            </span>
-                          )}
-                        </div>
-                        {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-muted-foreground italic px-1">
-                  Title &amp; border frame diperoleh dari badge yang berhasil kamu unlock setelah lulus ujian.
-                </p>
               </div>
 
               <button
