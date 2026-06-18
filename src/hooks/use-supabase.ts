@@ -638,10 +638,9 @@ export async function fetchAttemptsByExam(examId: string) {
 export async function fetchLeaderboardByExam(examId: string) {
   if (!isValidUUID(examId)) return [];
 
-  // Use !left for LEFT JOIN so rows appear even when user_profiles row is missing
   const { data, error } = await supabase
     .from("exam_attempts")
-    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles:user_id!left(full_name, active_title)")
+    .select("id, user_id, score, total_correct, total_questions, time_spent_seconds, finished_at, user_profiles(full_name, active_title)")
     .eq("exam_id", examId)
     .eq("is_submitted", true);
 

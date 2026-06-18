@@ -476,6 +476,12 @@ function StudentExamPage() {
                   <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-xs">
                     Ujian ini belum memiliki soal terdaftar. Silakan hubungi admin/mentor.
                   </div>
+                ) : isPassed ? (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs text-center font-bold">
+                      🎉 Anda telah lulus ujian ini dengan skor {bestScore}%. Anda tidak perlu mengerjakannya kembali.
+                    </div>
+                  </div>
                 ) : (
                   <button 
                     onClick={handleStartExam}
@@ -484,9 +490,11 @@ function StudentExamPage() {
                     <Play className="h-4 w-4 fill-white" /> Mulai Kerjakan Ujian Sekarang
                   </button>
                 )}
-                <p className="text-center text-[10px] text-muted-foreground mt-2">
-                  Timer akan langsung berjalan saat Anda mengklik Mulai. Jangan tutup halaman!
-                </p>
+                {!isPassed && questions.length > 0 && (
+                  <p className="text-center text-[10px] text-muted-foreground mt-2">
+                    Timer akan langsung berjalan saat Anda mengklik Mulai. Jangan tutup halaman!
+                  </p>
+                )}
               </div>
             </div>
 

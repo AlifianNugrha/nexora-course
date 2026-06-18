@@ -89,7 +89,6 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
 -- 8. Jalankan sinkronisasi paksa untuk memperbaiki profil user yang ada sekarang
 INSERT INTO public.user_profiles (id, full_name, role, is_verified, email)
 SELECT 
@@ -107,3 +106,12 @@ SET
     ELSE user_profiles.full_name
   END,
   email = COALESCE(EXCLUDED.email, user_profiles.email);
+
+-- 9. Hubungkan relasi secara eksplisit agar PostgREST / Supabase JS bisa melakukan JOIN dengan benar
+ALTER TABLE public.exam_attempts
+  DROP CONSTRAINT IF EXISTS fk_exam_attempts_user_profiles;
+
+ALTER TABLE public.exam_attempts
+  ADD CONSTRAINT fk_exam_attempts_user_profiles
+  FOREIGN KEY (user_id) REFERENCES public.user_profiles(id)
+  ON DELETE CASCADE;
