@@ -1,10 +1,10 @@
 -- ============================================================
--- SUPABASE MINI GAMES REALTIME DATABASE SCHEMA & SEED DATA
+-- SUPABASE MINI GAMES REALTIME DATABASE SCHEMA
 -- Salin dan paste seluruh isi script ini ke Supabase SQL Editor
 -- (Supabase Dashboard -> SQL Editor -> New Query -> Run)
 -- ============================================================
 
--- 1. Tabel Mini Games (Daftar game divisi & kuis)
+-- 1. Tabel Mini Games (Daftar game divisi & kuis yang dibuat Admin)
 CREATE TABLE IF NOT EXISTS public.mini_games (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -89,81 +89,3 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
-
--- ============================================================
--- INITIAL SEED DATA (Menggunakan Dollar-Quoting $$ agar aman)
--- ============================================================
-
-INSERT INTO public.mini_games (id, title, game_type, course_id, division_slug, description, prompt_instruction, questions)
-VALUES
-  (
-    'mg-prompt-01',
-    'AI Prompting Pegunungan Showcase',
-    'prompt_vote',
-    'c-fe-001',
-    'front-end',
-    'Buatlah gambar pemandangan pegunungan terbaik menggunakan AI image generator favoritmu!',
-    'Buat gambar pegunungan megah di sore hari dengan efek pemandangan memukau menggunakan AI (Midjourney/DALL-E/Bing AI/Ideogram).',
-    '[]'::jsonb
-  ),
-  (
-    'mg-quiz-01',
-    'Cerdas Cermat Web Tech Battle',
-    'cerdas_cermat',
-    'c-fe-001',
-    'front-end',
-    'Pertarungan pengetahuan cepat seputar HTML, CSS, JavaScript, dan React!',
-    '',
-    $$[
-      {"id":"q1","question":"Manakah tag HTML yang digunakan untuk membuat judul utama halaman?","options":["<h1>","<heading>","<head>","<title>"],"correctAnswer":0,"timeLimit":15},
-      {"id":"q2","question":"Sifat CSS manakah yang digunakan untuk membuat elemen fleksibel di satu baris?","options":["display: block","display: flex","position: absolute","float: left"],"correctAnswer":1,"timeLimit":15},
-      {"id":"q3","question":"Hook React manakah yang digunakan untuk menyimpan state lokal pada komponen?","options":["useEffect","useMemo","useState","useContext"],"correctAnswer":2,"timeLimit":15},
-      {"id":"q4","question":"Apakah singkatan dari DOM dalam pengembangan web?","options":["Data Object Model","Document Object Model","Digital Oriented Module","Desktop Order Method"],"correctAnswer":1,"timeLimit":15},
-      {"id":"q5","question":"Manakah perintah git yang digunakan untuk mengunggah perubahan ke remote repository?","options":["git commit","git clone","git push","git pull"],"correctAnswer":2,"timeLimit":15}
-    ]$$::jsonb
-  ),
-  (
-    'mg-quiz-mobile-01',
-    'Cerdas Cermat Mobile Dev & React Native / Flutter',
-    'cerdas_cermat',
-    'c-mb-001',
-    'mobile-dev',
-    'Pertarungan pengetahuan seputar React Native, Flutter, mobile architecture & cross-platform!',
-    '',
-    $$[
-      {"id":"mq1","question":"Komponen utama React Native yang digunakan untuk membungkus tampilan UI adalah?","options":["<View>","<div>","<Container>","<Layout>"],"correctAnswer":0,"timeLimit":15},
-      {"id":"mq2","question":"Bahasa pemrograman utama yang digunakan dalam pengembangan aplikasi Flutter adalah?","options":["Java","Swift","Dart","TypeScript"],"correctAnswer":2,"timeLimit":15},
-      {"id":"mq3","question":"Perintah CLI untuk membuat build APK/bundle pada React Native (Expo) adalah?","options":["npx expo build","eas build","react-native run-android","npm run build-apk"],"correctAnswer":1,"timeLimit":15},
-      {"id":"mq4","question":"Widget utama di Flutter yang nilainya tidak pernah berubah setelah di-render adalah?","options":["StatefulWidget","StatelessWidget","InheritedWidget","FlexibleWidget"],"correctAnswer":1,"timeLimit":15}
-    ]$$::jsonb
-  ),
-  (
-    'mg-prompt-mobile-01',
-    'Mobile App UI/UX Mockup Challenge',
-    'prompt_vote',
-    'c-mb-001',
-    'mobile-dev',
-    'Buatlah prompt AI terbaik untuk mendesain antarmuka aplikasi mobile modern (iOS/Android)!',
-    'Hasilkan gambar desain antarmuka aplikasi mobile E-Commerce / Fintech yang futuristik dan elegan menggunakan AI.',
-    '[]'::jsonb
-  ),
-  (
-    'mg-quiz-backend-01',
-    'Back End & Database Battle',
-    'cerdas_cermat',
-    'c-be-001',
-    'back-end',
-    'Uji pemahaman REST API, Node.js, PostgreSQL & SQL queries!',
-    '',
-    $$[
-      {"id":"bq1","question":"HTTP method manakah yang digunakan untuk memperbarui sebagian data resource?","options":["GET","POST","PUT","PATCH"],"correctAnswer":3,"timeLimit":15},
-      {"id":"bq2","question":"Perintah SQL untuk mengambil data tanpa duplikasi adalah?","options":["SELECT UNIQUE","SELECT DISTINCT","SELECT DIFFERENT","SELECT FILTER"],"correctAnswer":1,"timeLimit":15}
-    ]$$::jsonb
-  )
-ON CONFLICT (id) DO UPDATE SET
-  title = EXCLUDED.title,
-  game_type = EXCLUDED.game_type,
-  division_slug = EXCLUDED.division_slug,
-  description = EXCLUDED.description,
-  prompt_instruction = EXCLUDED.prompt_instruction,
-  questions = EXCLUDED.questions;

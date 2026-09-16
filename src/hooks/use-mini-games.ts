@@ -54,139 +54,8 @@ export type GameVote = {
   reaction: "bagus_sekali" | "absolute_cinema" | "kurang" | "jelek";
 };
 
-// Initial Mock Seed Data for Fallback & Initialization
-const MOCK_GAMES: MiniGame[] = [
-  {
-    id: "mg-prompt-01",
-    title: "AI Prompting Pegunungan Showcase",
-    game_type: "prompt_vote",
-    course_id: "c-fe-001",
-    division_slug: "front-end",
-    description: "Buatlah gambar pemandangan pegunungan terbaik menggunakan AI image generator favoritmu!",
-    prompt_instruction: "Buat gambar pegunungan megah di sore hari dengan efek pemandangan memukau menggunakan AI (Midjourney/DALL-E/Bing AI/Ideogram).",
-    created_at: new Date().toISOString()
-  },
-  {
-    id: "mg-quiz-01",
-    title: "Cerdas Cermat Web Tech Battle",
-    game_type: "cerdas_cermat",
-    course_id: "c-fe-001",
-    division_slug: "front-end",
-    description: "Pertarungan pengetahuan cepat seputar HTML, CSS, JavaScript, dan React!",
-    questions: [
-      {
-        id: "q1",
-        question: "Manakah tag HTML yang digunakan untuk membuat judul utama halaman?",
-        options: ["<h1>", "<heading>", "<head>", "<title>"],
-        correctAnswer: 0,
-        timeLimit: 15
-      },
-      {
-        id: "q2",
-        question: "Sifat CSS manakah yang digunakan untuk membuat elemen fleksibel di satu baris?",
-        options: ["display: block", "display: flex", "position: absolute", "float: left"],
-        correctAnswer: 1,
-        timeLimit: 15
-      },
-      {
-        id: "q3",
-        question: "Hook React manakah yang digunakan untuk menyimpan state lokal pada komponen?",
-        options: ["useEffect", "useMemo", "useState", "useContext"],
-        correctAnswer: 2,
-        timeLimit: 15
-      },
-      {
-        id: "q4",
-        question: "Apakah singkatan dari DOM dalam pengembangan web?",
-        options: ["Data Object Model", "Document Object Model", "Digital Oriented Module", "Desktop Order Method"],
-        correctAnswer: 1,
-        timeLimit: 15
-      },
-      {
-        id: "q5",
-        question: "Manakah perintah git yang digunakan untuk mengunggah perubahan ke remote repository?",
-        options: ["git commit", "git clone", "git push", "git pull"],
-        correctAnswer: 2,
-        timeLimit: 15
-      }
-    ],
-    created_at: new Date().toISOString()
-  },
-  {
-    id: "mg-quiz-mobile-01",
-    title: "Cerdas Cermat Mobile Dev & React Native / Flutter",
-    game_type: "cerdas_cermat",
-    course_id: "c-mb-001",
-    division_slug: "mobile-dev",
-    description: "Pertarungan pengetahuan seputar React Native, Flutter, mobile architecture & cross-platform!",
-    questions: [
-      {
-        id: "mq1",
-        question: "Komponen utama React Native yang digunakan untuk membungkus tampilan UI adalah?",
-        options: ["<View>", "<div>", "<Container>", "<Layout>"],
-        correctAnswer: 0,
-        timeLimit: 15
-      },
-      {
-        id: "mq2",
-        question: "Bahasa pemrograman utama yang digunakan dalam pengembangan aplikasi Flutter adalah?",
-        options: ["Java", "Swift", "Dart", "TypeScript"],
-        correctAnswer: 2,
-        timeLimit: 15
-      },
-      {
-        id: "mq3",
-        question: "Perintah CLI untuk membuat build APK/bundle pada React Native (Expo) adalah?",
-        options: ["npx expo build", "eas build", "react-native run-android", "npm run build-apk"],
-        correctAnswer: 1,
-        timeLimit: 15
-      },
-      {
-        id: "mq4",
-        question: "Widget utama di Flutter yang nilainya tidak pernah berubah setelah di-render adalah?",
-        options: ["StatefulWidget", "StatelessWidget", "InheritedWidget", "FlexibleWidget"],
-        correctAnswer: 1,
-        timeLimit: 15
-      }
-    ],
-    created_at: new Date().toISOString()
-  },
-  {
-    id: "mg-prompt-mobile-01",
-    title: "Mobile App UI/UX Mockup Challenge",
-    game_type: "prompt_vote",
-    course_id: "c-mb-001",
-    division_slug: "mobile-dev",
-    description: "Buatlah prompt AI terbaik untuk mendesain antarmuka aplikasi mobile modern (iOS/Android)!",
-    prompt_instruction: "Hasilkan gambar desain antarmuka aplikasi mobile E-Commerce / Fintech yang futuristik dan elegan menggunakan AI.",
-    created_at: new Date().toISOString()
-  },
-  {
-    id: "mg-quiz-backend-01",
-    title: "Back End & Database Battle",
-    game_type: "cerdas_cermat",
-    course_id: "c-be-001",
-    division_slug: "back-end",
-    description: "Uji pemahaman REST API, Node.js, PostgreSQL & SQL queries!",
-    questions: [
-      {
-        id: "bq1",
-        question: "HTTP method manakah yang digunakan untuk memperbarui sebagian data resource?",
-        options: ["GET", "POST", "PUT", "PATCH"],
-        correctAnswer: 3,
-        timeLimit: 15
-      },
-      {
-        id: "bq2",
-        question: "Perintah SQL untuk mengambil data tanpa duplikasi adalah?",
-        options: ["SELECT UNIQUE", "SELECT DISTINCT", "SELECT DIFFERENT", "SELECT FILTER"],
-        correctAnswer: 1,
-        timeLimit: 15
-      }
-    ],
-    created_at: new Date().toISOString()
-  }
-];
+// Dynamic Games Array (Fully Managed by Admin in Supabase Database)
+const MOCK_GAMES: MiniGame[] = [];
 
 // Helper LocalStorage Keys (Local Cache Fallback)
 const STORAGE_GAMES_KEY = "nexora_mini_games_list";
@@ -198,33 +67,17 @@ const STORAGE_VOTES_KEY = "nexora_game_votes";
 export function getStoredGames(): MiniGame[] {
   try {
     const raw = localStorage.getItem(STORAGE_GAMES_KEY);
-    let games: MiniGame[] = raw ? JSON.parse(raw) : [];
-
-    const existingIds = new Set(games.map((g) => g.id));
-    let updated = false;
-
-    for (const mockGame of MOCK_GAMES) {
-      if (!existingIds.has(mockGame.id)) {
-        games.push(mockGame);
-        updated = true;
-      }
-    }
-
-    if (!raw || updated) {
-      localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(games));
-    }
-
-    return games;
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return MOCK_GAMES;
+    return [];
   }
 }
 
 // Asynchronous Fetch from Supabase Table `mini_games`
 export async function fetchGamesFromSupabase(): Promise<MiniGame[]> {
   try {
-    const { data, error } = await supabase.from("mini_games").select("*");
-    if (!error && data && data.length > 0) {
+    const { data, error } = await supabase.from("mini_games").select("*").order("created_at", { ascending: false });
+    if (!error && data) {
       localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(data));
       return data;
     }
