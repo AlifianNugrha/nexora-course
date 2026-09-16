@@ -20,40 +20,26 @@ function LoginPage() {
     setError("");
     setLoading(true);
 
+    // Clear any previous admin session on new login attempt
+    sessionStorage.removeItem("admin_auth");
+    sessionStorage.removeItem("admin_role");
+
     try {
       const inputEmail = email.trim().toLowerCase();
       const inputPassword = password.trim();
 
-      // Try Supabase Auth first
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: inputEmail,
-        password: inputPassword,
-      });
-
-      if (!authError && authData?.user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
-        if (profile && (profile.role === "super_admin" || profile.role === "mentor")) {
-          sessionStorage.setItem("admin_auth", "true");
-          sessionStorage.setItem("admin_role", profile.role);
-          navigate({ to: "/admin" });
-          return;
-        }
-      }
-
       // STRICT VALIDATION: Password HARUS nexora123!
-      if (inputPassword === "nexora123") {
-        sessionStorage.setItem("admin_auth", "true");
-        sessionStorage.setItem("admin_role", "super_admin");
-        navigate({ to: "/admin" });
+      if (inputPassword !== "nexora123") {
+        await supabase.auth.signOut();
+        setError("Email atau Password salah!");
+        setLoading(false);
         return;
       }
 
-      setError("Email atau Password salah!");
+      // Password is valid (nexora123)
+      sessionStorage.setItem("admin_auth", "true");
+      sessionStorage.setItem("admin_role", "super_admin");
+      navigate({ to: "/admin" });
     } catch (err) {
       console.error(err);
       setError("Terjadi kesalahan. Coba lagi.");
