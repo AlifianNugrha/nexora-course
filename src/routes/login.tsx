@@ -45,15 +45,18 @@ function LoginPage() {
         }
       }
 
-      // Fallback: Guarantee Admin Access for any login attempt on /login
-      sessionStorage.setItem("admin_auth", "true");
-      sessionStorage.setItem("admin_role", "super_admin");
-      navigate({ to: "/admin" });
+      // STRICT VALIDATION: Password HARUS nexora123!
+      if (inputPassword === "nexora123") {
+        sessionStorage.setItem("admin_auth", "true");
+        sessionStorage.setItem("admin_role", "super_admin");
+        navigate({ to: "/admin" });
+        return;
+      }
+
+      setError("Email atau Password salah!");
     } catch (err) {
       console.error(err);
-      sessionStorage.setItem("admin_auth", "true");
-      sessionStorage.setItem("admin_role", "super_admin");
-      navigate({ to: "/admin" });
+      setError("Terjadi kesalahan. Coba lagi.");
     } finally {
       setLoading(false);
     }
