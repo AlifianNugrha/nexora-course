@@ -15,31 +15,69 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    // Clear any previous admin session on new login attempt
-    sessionStorage.removeItem("admin_auth");
-    sessionStorage.removeItem("admin_role");
-
-    setTimeout(() => {
+    try {
+      const inputEmail = email.trim().toLowerCase();
       const inputPassword = password.trim();
 
-      // STRICT VALIDATION: Password HARUS nexora123!
-      if (inputPassword !== "nexora123") {
-        setError("Email atau Password salah!");
+      // 1. Authenticate with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: inputEmail,
+        password: inputPassword,
+      });
+
+      if (authError) {
+        // Fallback for default admin credentials if Supabase Auth user hasn't been registered yet
+        const isKnownAdmin = 
+          (inputEmail === "admin@nexora.id" && inputPassword === "nexora123") ||
+          (inputEmail === "admin@nexora.id" && inputPassword === "password12345") ||
+          (inputPassword === "nexora123");
+
+        if (isKnownAdmin) {
+          sessionStorage.setItem("admin_auth", "true");
+          sessionStorage.setItem("admin_role", "super_admin");
+          setLoading(false);
+          navigate({ to: "/admin" });
+          return;
+        }
+
+        setError("Email atau Password Supabase salah! (Atau gunakan password default nexora123)");
         setLoading(false);
         return;
       }
 
-      // Password valid (nexora123) -> Grant access!
-      sessionStorage.setItem("admin_auth", "true");
-      sessionStorage.setItem("admin_role", "super_admin");
+      if (authData?.user) {
+        // 2. Fetch user profile & role from Supabase `user_profiles` table
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role")
+          .eq("id", authData.user.id)
+          .maybeSingle();
+
+        const role = profile?.role || "super_admin";
+        if (role !== "super_admin" && role !== "mentor") {
+          setError("Akun Supabase ini tidak memiliki hak akses Admin.");
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+
+        sessionStorage.setItem("admin_auth", "true");
+        sessionStorage.setItem("admin_role", role);
+        setLoading(false);
+        navigate({ to: "/admin" });
+        return;
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError("Terjadi kesalahan saat otentikasi Supabase.");
+    } finally {
       setLoading(false);
-      navigate({ to: "/admin" });
-    }, 300);
+    }
   };
 
   return (
