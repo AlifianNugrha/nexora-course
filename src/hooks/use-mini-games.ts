@@ -111,6 +111,80 @@ const MOCK_GAMES: MiniGame[] = [
       }
     ],
     created_at: new Date().toISOString()
+  },
+  {
+    id: "mg-quiz-mobile-01",
+    title: "Cerdas Cermat Mobile Dev & React Native / Flutter",
+    game_type: "cerdas_cermat",
+    course_id: "c-mb-001",
+    division_slug: "mobile-dev",
+    description: "Pertarungan pengetahuan seputar React Native, Flutter, mobile architecture & cross-platform!",
+    questions: [
+      {
+        id: "mq1",
+        question: "Komponen utama React Native yang digunakan untuk membungkus tampilan UI adalah?",
+        options: ["<View>", "<div>", "<Container>", "<Layout>"],
+        correctAnswer: 0,
+        timeLimit: 15
+      },
+      {
+        id: "mq2",
+        question: "Bahasa pemrograman utama yang digunakan dalam pengembangan aplikasi Flutter adalah?",
+        options: ["Java", "Swift", "Dart", "TypeScript"],
+        correctAnswer: 2,
+        timeLimit: 15
+      },
+      {
+        id: "mq3",
+        question: "Perintah CLI untuk membuat build APK/bundle pada React Native (Expo) adalah?",
+        options: ["npx expo build", "eas build", "react-native run-android", "npm run build-apk"],
+        correctAnswer: 1,
+        timeLimit: 15
+      },
+      {
+        id: "mq4",
+        question: "Widget utama di Flutter yang nilainya tidak pernah berubah setelah di-render adalah?",
+        options: ["StatefulWidget", "StatelessWidget", "InheritedWidget", "FlexibleWidget"],
+        correctAnswer: 1,
+        timeLimit: 15
+      }
+    ],
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "mg-prompt-mobile-01",
+    title: "Mobile App UI/UX Mockup Challenge",
+    game_type: "prompt_vote",
+    course_id: "c-mb-001",
+    division_slug: "mobile-dev",
+    description: "Buatlah prompt AI terbaik untuk mendesain antarmuka aplikasi mobile modern (iOS/Android)!",
+    prompt_instruction: "Hasilkan gambar desain antarmuka aplikasi mobile E-Commerce / Fintech yang futuristik dan elegan menggunakan AI.",
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "mg-quiz-backend-01",
+    title: "Back End & Database Battle",
+    game_type: "cerdas_cermat",
+    course_id: "c-be-001",
+    division_slug: "back-end",
+    description: "Uji pemahaman REST API, Node.js, PostgreSQL & SQL queries!",
+    questions: [
+      {
+        id: "bq1",
+        question: "HTTP method manakah yang digunakan untuk memperbarui sebagian data resource?",
+        options: ["GET", "POST", "PUT", "PATCH"],
+        correctAnswer: 3,
+        timeLimit: 15
+      },
+      {
+        id: "bq2",
+        question: "Perintah SQL untuk mengambil data tanpa duplikasi adalah?",
+        options: ["SELECT UNIQUE", "SELECT DISTINCT", "SELECT DIFFERENT", "SELECT FILTER"],
+        correctAnswer: 1,
+        timeLimit: 15
+      }
+    ],
+    created_at: new Date().toISOString()
   }
 ];
 

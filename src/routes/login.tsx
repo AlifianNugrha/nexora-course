@@ -15,7 +15,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -24,28 +24,22 @@ function LoginPage() {
     sessionStorage.removeItem("admin_auth");
     sessionStorage.removeItem("admin_role");
 
-    try {
-      const inputEmail = email.trim().toLowerCase();
+    setTimeout(() => {
       const inputPassword = password.trim();
 
       // STRICT VALIDATION: Password HARUS nexora123!
       if (inputPassword !== "nexora123") {
-        await supabase.auth.signOut();
         setError("Email atau Password salah!");
         setLoading(false);
         return;
       }
 
-      // Password is valid (nexora123)
+      // Password valid (nexora123) -> Grant access!
       sessionStorage.setItem("admin_auth", "true");
       sessionStorage.setItem("admin_role", "super_admin");
-      navigate({ to: "/admin" });
-    } catch (err) {
-      console.error(err);
-      setError("Terjadi kesalahan. Coba lagi.");
-    } finally {
       setLoading(false);
-    }
+      navigate({ to: "/admin" });
+    }, 300);
   };
 
   return (

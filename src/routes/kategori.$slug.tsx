@@ -229,6 +229,97 @@ function MobileCategoryPage({ category, courses }: { category: any, courses: any
         </div>
       </section>
 
+      {/* Mobile Mini Games Divisi Section */}
+      <section className="mt-2 bg-white px-4 py-6 shadow-sm dark:bg-card">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600/10 text-purple-600">
+                <Gamepad2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Mini Games Divisi Interaktif</h2>
+                <p className="text-[11px] text-muted-foreground">Uji skill {category.name} & kumpulkan poin</p>
+              </div>
+            </div>
+
+            {/* Join Room Code Input for Mobile */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const input = fd.get("mobileRoomCode") as string;
+                if (input && input.trim()) {
+                  window.location.href = `/game/mg-prompt-01?code=${input.trim().toUpperCase()}`;
+                }
+              }}
+              className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50/50 p-1.5 dark:border-purple-900/40 dark:bg-purple-950/30"
+            >
+              <KeyRound className="h-4 w-4 text-purple-600 ml-1 shrink-0" />
+              <input
+                name="mobileRoomCode"
+                type="text"
+                placeholder="KODE ROOM (NEX-XXXX)"
+                className="w-full min-w-0 bg-transparent px-2 py-1 text-xs font-bold text-foreground placeholder-muted-foreground uppercase outline-none"
+              />
+              <button
+                type="submit"
+                className="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-purple-700 transition-all shrink-0"
+              >
+                Join
+              </button>
+            </form>
+          </div>
+
+          <div className="grid gap-3">
+            {(() => {
+              const categoryGames = getStoredGames().filter(
+                (g) => g.division_slug === category.slug || g.division_slug === "all" || !g.division_slug
+              );
+
+              if (categoryGames.length === 0) {
+                return (
+                  <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                    Belum ada mini game di divisi ini.
+                  </p>
+                );
+              }
+
+              return categoryGames.map((g) => (
+                <div
+                  key={g.id}
+                  className="flex flex-col justify-between rounded-2xl border border-purple-100 bg-purple-50/40 p-4 shadow-sm dark:border-purple-900/30 dark:bg-purple-950/20"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600 text-white shrink-0">
+                        {g.game_type === "prompt_vote" ? <Sparkles className="h-4 w-4" /> : <Trophy className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold text-foreground line-clamp-1">{g.title}</h3>
+                        <span className="inline-block rounded-full bg-purple-200 px-2 py-0.5 text-[9px] font-extrabold text-purple-800 dark:bg-purple-900 dark:text-purple-200 mt-0.5">
+                          {g.game_type === "prompt_vote" ? "AI Prompt & Vote" : "Cerdas Cermat"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2">{g.description || "Game divisi interaktif."}</p>
+
+                  <Link
+                    to="/game/$gameId"
+                    params={{ gameId: g.id }}
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-purple-700 transition-all"
+                  >
+                    Mainkan Game Divisi <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      </section>
+
       {/* DANA-style Course List */}
       <section className="mt-2 flex-1 bg-white px-4 py-6 shadow-sm dark:bg-card">
         <div className="mx-auto max-w-3xl">

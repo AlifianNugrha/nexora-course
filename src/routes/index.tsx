@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Sparkles, BookOpen, Calendar, Users, ArrowRight, Zap, Trophy, Target,
-  MonitorSmartphone, Server, Palette, Smartphone, Infinity, LineChart, Code2
+  MonitorSmartphone, Server, Palette, Smartphone, Infinity, LineChart, Code2, Gamepad2
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -314,25 +314,48 @@ function MobileHomePage({ categories, courses, events, gallery, onEventClick }: 
           </div>
 
           {/* Action Pills */}
-          <div className="mt-5 flex gap-3">
+          <div className="mt-5 flex gap-2.5">
             <Link
               to="/jadwal"
-              className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95 dark:bg-card dark:ring-border"
+              className="group flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-3 text-xs font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 active:scale-95 dark:bg-card dark:ring-border"
             >
               <Calendar className="h-4 w-4 text-primary transition-colors group-hover:text-purple-600" />
-              <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
-                Jadwal
-              </span>
+              <span className="text-primary transition-all">Jadwal</span>
+            </Link>
+            <Link
+              to="/kategori/mobile-dev"
+              className="group flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-purple-50 py-3 text-xs font-bold shadow-[0_4px_14px_0_rgba(147,51,234,0.1)] ring-1 ring-purple-200 transition-all hover:-translate-y-1 active:scale-95 dark:bg-purple-950/40 dark:ring-purple-900/40"
+            >
+              <Gamepad2 className="h-4 w-4 text-purple-600 animate-pulse" />
+              <span className="text-purple-700 dark:text-purple-300 font-extrabold">Mini Games</span>
             </Link>
             <a
               href="#kelas"
-              className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95 dark:bg-card dark:ring-border"
+              className="group flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-3 text-xs font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 active:scale-95 dark:bg-card dark:ring-border"
             >
               <BookOpen className="h-4 w-4 text-primary transition-colors group-hover:text-purple-600" />
-              <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
-                Semua Kelas
-              </span>
+              <span className="text-primary transition-all">Kelas</span>
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ Mobile Mini Games Banner ═══ */}
+      <section className="mt-2 bg-white px-4 py-4 dark:bg-card">
+        <div className="mx-auto max-w-3xl">
+          <div className="flex items-center justify-between rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-600/10 via-pink-500/10 to-blue-600/10 p-4 shadow-sm dark:border-purple-900/40">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white shadow-soft">
+                <Gamepad2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Mini Games Divisi Tech</h3>
+                <p className="text-[10px] text-muted-foreground">Mobile Dev, Front End & Back End Challenge</p>
+              </div>
+            </div>
+            <Link to="/kategori/mobile-dev" className="group rounded-full bg-purple-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-purple-700 transition-all flex items-center gap-1">
+              Mainkan <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         </div>
       </section>

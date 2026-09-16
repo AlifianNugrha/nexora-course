@@ -142,24 +142,24 @@ function GamePlayerPage() {
       <SiteHeader />
 
       {/* Top Game Navigation Bar */}
-      <div className="border-b border-border bg-card/60 backdrop-blur-md px-4 py-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+      <div className="border-b border-border bg-card/60 backdrop-blur-md px-3 py-2.5 sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2">
           <Link
             to="/course/$courseId"
             params={{ courseId: game.course_id || "c-fe-001" }}
-            className="inline-flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-primary transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors shrink-0"
           >
-            <ArrowLeft className="h-4 w-4" /> Kembali ke Kelas
+            <ArrowLeft className="h-3.5 w-3.5" /> Kembali ke Kelas
           </Link>
 
-          <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-extrabold ${game.game_type === "prompt_vote" ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"}`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-extrabold ${game.game_type === "prompt_vote" ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"}`}>
               {game.game_type === "prompt_vote" ? <Sparkles className="h-3.5 w-3.5" /> : <Trophy className="h-3.5 w-3.5" />}
-              {game.title}
+              <span className="max-w-[140px] sm:max-w-none truncate">{game.title}</span>
             </span>
 
             {roomCode && (
-              <span className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              <span className="rounded-xl border border-primary/30 bg-primary/10 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-bold text-primary shrink-0">
                 KODE: {roomCode}
               </span>
             )}
@@ -168,7 +168,7 @@ function GamePlayerPage() {
       </div>
 
       {/* MAIN GAME CONTAINER */}
-      <main className="flex-1 px-4 py-8">
+      <main className="flex-1 px-3 py-4 sm:px-4 sm:py-8">
         <div className="mx-auto max-w-4xl">
 
           {/* ==================================================== */}
@@ -491,16 +491,16 @@ function GamePlayerPage() {
               </div>
 
               {/* Podium Showcase 1, 2, 3 */}
-              <div className="flex justify-center items-end gap-4 pt-6 pb-2">
+              <div className="flex justify-center items-end gap-2 sm:gap-4 pt-6 pb-2 w-full overflow-x-auto">
                 {/* Juara 2 (Perak) */}
                 {sortedLeaderboard[1] && (
-                  <div className="flex flex-col items-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-300 text-slate-800 font-extrabold text-sm shadow">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-slate-300 text-slate-800 font-extrabold text-xs sm:text-sm shadow">
                       🥈
                     </div>
-                    <p className="mt-2 text-xs font-bold text-foreground max-w-[90px] truncate">{sortedLeaderboard[1].user_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{sortedLeaderboard[1].score || 0} pts</p>
-                    <div className="mt-2 h-24 w-20 rounded-t-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-extrabold text-slate-600">
+                    <p className="mt-2 text-[11px] sm:text-xs font-bold text-foreground max-w-[75px] sm:max-w-[90px] truncate">{sortedLeaderboard[1].user_name}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground">{sortedLeaderboard[1].score || 0} pts</p>
+                    <div className="mt-2 h-20 sm:h-24 w-16 sm:w-20 rounded-t-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-extrabold text-slate-600 text-sm sm:text-base">
                       #2
                     </div>
                   </div>
@@ -508,13 +508,13 @@ function GamePlayerPage() {
 
                 {/* Juara 1 (Emas) */}
                 {sortedLeaderboard[0] && (
-                  <div className="flex flex-col items-center -mt-6">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-400 text-amber-950 font-extrabold text-xl shadow-lg ring-4 ring-amber-300">
+                  <div className="flex flex-col items-center shrink-0 -mt-4 sm:-mt-6">
+                    <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-amber-400 text-amber-950 font-extrabold text-base sm:text-xl shadow-lg ring-2 sm:ring-4 ring-amber-300">
                       👑 🥇
                     </div>
-                    <p className="mt-2 text-sm font-extrabold text-foreground max-w-[110px] truncate">{sortedLeaderboard[0].user_name}</p>
-                    <p className="text-xs font-bold text-amber-600">{sortedLeaderboard[0].score || 0} pts</p>
-                    <div className="mt-2 h-36 w-24 rounded-t-2xl bg-gradient-to-t from-amber-500 to-amber-400 flex items-center justify-center font-extrabold text-white text-xl shadow-md">
+                    <p className="mt-2 text-xs sm:text-sm font-extrabold text-foreground max-w-[85px] sm:max-w-[110px] truncate">{sortedLeaderboard[0].user_name}</p>
+                    <p className="text-[10px] sm:text-xs font-bold text-amber-600">{sortedLeaderboard[0].score || 0} pts</p>
+                    <div className="mt-2 h-28 sm:h-36 w-20 sm:w-24 rounded-t-2xl bg-gradient-to-t from-amber-500 to-amber-400 flex items-center justify-center font-extrabold text-white text-lg sm:text-xl shadow-md">
                       #1
                     </div>
                   </div>
@@ -522,13 +522,13 @@ function GamePlayerPage() {
 
                 {/* Juara 3 (Perunggu) */}
                 {sortedLeaderboard[2] && (
-                  <div className="flex flex-col items-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-700 text-white font-extrabold text-sm shadow">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-amber-700 text-white font-extrabold text-xs sm:text-sm shadow">
                       🥉
                     </div>
-                    <p className="mt-2 text-xs font-bold text-foreground max-w-[90px] truncate">{sortedLeaderboard[2].user_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{sortedLeaderboard[2].score || 0} pts</p>
-                    <div className="mt-2 h-20 w-20 rounded-t-2xl bg-amber-800/20 flex items-center justify-center font-extrabold text-amber-800">
+                    <p className="mt-2 text-[11px] sm:text-xs font-bold text-foreground max-w-[75px] sm:max-w-[90px] truncate">{sortedLeaderboard[2].user_name}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground">{sortedLeaderboard[2].score || 0} pts</p>
+                    <div className="mt-2 h-16 sm:h-20 w-16 sm:w-20 rounded-t-2xl bg-amber-800/20 flex items-center justify-center font-extrabold text-amber-800 text-sm sm:text-base">
                       #3
                     </div>
                   </div>
@@ -540,14 +540,14 @@ function GamePlayerPage() {
                 <h3 className="text-sm font-bold text-foreground mb-3">Klasemen Seluruh Peserta</h3>
                 <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden">
                   {sortedLeaderboard.map((p, rankIdx) => (
-                    <div key={p.id} className="flex items-center justify-between p-3.5 text-xs">
-                      <div className="flex items-center gap-3">
-                        <span className={`flex h-6 w-6 items-center justify-center rounded-full font-bold ${rankIdx === 0 ? "bg-amber-400 text-amber-950" : rankIdx === 1 ? "bg-slate-300 text-slate-800" : rankIdx === 2 ? "bg-amber-700 text-white" : "bg-secondary text-muted-foreground"}`}>
+                    <div key={p.id} className="flex items-center justify-between p-3 sm:p-3.5 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-full font-bold text-xs shrink-0 ${rankIdx === 0 ? "bg-amber-400 text-amber-950" : rankIdx === 1 ? "bg-slate-300 text-slate-800" : rankIdx === 2 ? "bg-amber-700 text-white" : "bg-secondary text-muted-foreground"}`}>
                           {rankIdx + 1}
                         </span>
-                        <span className="font-bold text-foreground">{p.user_name}</span>
+                        <span className="font-bold text-foreground truncate">{p.user_name}</span>
                       </div>
-                      <span className="font-extrabold text-primary">{p.score || 0} Poin</span>
+                      <span className="font-extrabold text-primary shrink-0 ml-2">{p.score || 0} Poin</span>
                     </div>
                   ))}
                 </div>
