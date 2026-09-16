@@ -6,8 +6,8 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { fetchCourseById, fetchSchedulesByCourse, fetchExamsByCourseId } from "@/hooks/use-supabase";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
+import { fetchGamesFromSupabase, MiniGame } from "@/hooks/use-mini-games";
 import { redirect } from "@tanstack/react-router";
-import { getStoredGames } from "@/hooks/use-mini-games";
 
 export const Route = createFileRoute("/course/$courseId")({
   beforeLoad: async () => {
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/course/$courseId")({
   component: CourseDetail,
 });
 
-function DesktopCourseDetail({ course, sessions, onAccess, exams }: { course: any, sessions: any[], onAccess: () => void, exams: any[] }) {
+function DesktopCourseDetail({ course, sessions, onAccess, exams, games }: { course: any, sessions: any[], onAccess: () => void, exams: any[], games: MiniGame[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -190,7 +190,7 @@ function DesktopCourseDetail({ course, sessions, onAccess, exams }: { course: an
             <div className="mt-5 space-y-3">
               {(() => {
                 const catSlug = (course.category || "").toLowerCase().replace(/\s+/g, "-");
-                const classGames = getStoredGames().filter(
+                const classGames = (games || []).filter(
                   (g) => g.course_id === course.id || g.course_id === "all" || g.division_slug === catSlug || g.division_slug === "all"
                 );
 
@@ -281,7 +281,7 @@ function DesktopCourseDetail({ course, sessions, onAccess, exams }: { course: an
   );
 }
 
-function MobileCourseDetail({ course, sessions, onAccess, exams }: { course: any, sessions: any[], onAccess: () => void, exams: any[] }) {
+function MobileCourseDetail({ course, sessions, onAccess, exams, games }: { course: any, sessions: any[], onAccess: () => void, exams: any[], games: MiniGame[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-background pb-20">
       <SiteHeader />
@@ -454,7 +454,7 @@ function MobileCourseDetail({ course, sessions, onAccess, exams }: { course: any
           <div className="grid gap-3">
             {(() => {
               const catSlug = (course.category || "").toLowerCase().replace(/\s+/g, "-");
-              const classGames = getStoredGames().filter(
+              const classGames = (games || []).filter(
                 (g) => g.course_id === course.id || g.course_id === "all" || g.division_slug === catSlug || g.division_slug === "all"
               );
 
@@ -504,7 +504,12 @@ function CourseDetail() {
   const [course, setCourse] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
+  const [games, setGames] = useState<MiniGame[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchGamesFromSupabase().then((data) => setGames(data));
+  }, []);
   
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -606,10 +611,10 @@ function CourseDetail() {
   return (
     <>
       <div className="lg:hidden">
-        <MobileCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} />
+        <MobileCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} games={games} />
       </div>
       <div className="hidden lg:block">
-        <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} />
+        <DesktopCourseDetail course={course} sessions={sessions} onAccess={handleAccess} exams={exams} games={games} />
       </div>
 
       {submitting && (

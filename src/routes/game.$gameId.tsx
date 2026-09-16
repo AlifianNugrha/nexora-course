@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  getStoredGames, MiniGame, useGameRoom, joinRoomParticipant, submitParticipantArtwork, castVote, updateRoomStatus, createRoom, getRoomByCode
+  MiniGame, useGameRoom, joinRoomParticipant, submitParticipantArtwork, castVote, updateRoomStatus, createRoom, getRoomByCode, fetchGamesFromSupabase
 } from "@/hooks/use-mini-games";
 
 export const Route = createFileRoute("/game/$gameId")({
@@ -24,6 +24,7 @@ function GamePlayerPage() {
   const [roomCode, setRoomCode] = useState<string>(search?.code || "");
   const [inputCode, setInputCode] = useState<string>("");
   const { room, participants, votes } = useGameRoom(roomCode);
+  const [loadedGame, setLoadedGame] = useState<MiniGame | null>(null);
 
   // Participant details with STABLE user ID
   const [currentUserId] = useState(() => {
@@ -47,7 +48,20 @@ function GamePlayerPage() {
   const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState<number>(15);
 
-  const game: MiniGame = room?.game_data || getStoredGames().find((g) => g.id === gameId) || getStoredGames()[0];
+  // Fetch game fallback directly from Supabase
+  useEffect(() => {
+    fetchGamesFromSupabase().then((games) => {
+      const found = games.find((g) => g.id === gameId);
+      if (found) setLoadedGame(found);
+    });
+  }, [gameId]);
+
+  const game: MiniGame = room?.game_data || loadedGame || {
+    id: gameId,
+    title: "Nexora Mini Game",
+    game_type: "prompt_vote",
+    prompt_instruction: "Buat karya AI sesuai topik pembelajaran.",
+  };
 
   // Join Room when room code is set
   useEffect(() => {
@@ -84,52 +98,56 @@ function GamePlayerPage() {
     }
   }, [room?.status, room?.current_index, game]);
 
-  const handleJoinByCode = (e: React.FormEvent) => {
+  const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputCode.trim()) return;
     const upper = inputCode.trim().toUpperCase();
-    const existing = getRoomByCode(upper);
+    const existing = await getRoomByCode(upper);
     if (!existing) {
-      alert(`Kode Room "${upper}" tidak ditemukan. Pastikan Admin sudah meluncurkan room!`);
+      alert(`Kode Room "${upper}" tidak ditemukan. Pastikan Admin sudah meluncurkan room di Supabase!`);
       return;
     }
     setRoomCode(upper);
   };
 
-  const handleCreateHostRoom = () => {
-    const newRoom = createRoom(game.id);
-    setRoomCode(newRoom.room_code);
+  const handleCreateHostRoom = async () => {
+    const newRoom = await createRoom(game.id, game);
+    if (newRoom) {
+      setRoomCode(newRoom.room_code);
+    }
   };
 
-  const handleSubmitArtwork = (e: React.FormEvent) => {
+  const handleSubmitArtwork = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!imageUrlInput.trim() || !roomCode) return;
-    submitParticipantArtwork(roomCode, currentUserId, imageUrlInput.trim());
+    await submitParticipantArtwork(roomCode, currentUserId, imageUrlInput.trim());
     setSubmittedImage(imageUrlInput.trim());
   };
 
-  const handleVote = (targetUserId: string, reaction: "bagus_sekali" | "absolute_cinema" | "kurang" | "jelek") => {
+  const handleVote = async (targetUserId: string, reaction: "bagus_sekali" | "absolute_cinema" | "kurang" | "jelek") => {
     if (!roomCode) return;
-    castVote({
+    const targetP = participants.find((p) => p.user_id === targetUserId);
+    await castVote({
       room_code: roomCode,
       target_user_id: targetUserId,
       voter_user_id: currentUserId,
       reaction,
-    });
+    }, targetP?.score || 0);
   };
 
-  const handleSelectOption = (index: number) => {
+  const handleSelectOption = async (index: number) => {
     if (selectedOption !== null || isAnswerRevealed) return;
     setSelectedOption(index);
     const q = game.questions?.[room?.current_index || 0];
     if (q && index === q.correctAnswer) {
       // Correct answer bonus points
       const points = Math.max(50, timerSeconds * 10);
-      joinRoomParticipant({
+      const currentScore = participants.find((p) => p.user_id === currentUserId)?.score || 0;
+      await joinRoomParticipant({
         room_code: roomCode,
         user_id: currentUserId,
         user_name: currentUserName,
-        score: (participants.find((p) => p.user_id === currentUserId)?.score || 0) + points,
+        score: currentScore + points,
       });
     }
   };

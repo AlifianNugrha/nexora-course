@@ -3,7 +3,7 @@ import {
   Gamepad2, Plus, Play, Sparkles, Trophy, Users, Trash2, Edit, X, Copy, Check, ArrowRight, Eye
 } from "lucide-react";
 import {
-  MiniGame, GameType, CerdasCermatQuestion, getStoredGames, saveStoredGame, deleteStoredGame, createRoom, updateRoomStatus, useGameRoom
+  MiniGame, GameType, CerdasCermatQuestion, fetchGamesFromSupabase, saveStoredGame, deleteStoredGame, createRoom, updateRoomStatus, useGameRoom
 } from "@/hooks/use-mini-games";
 import { Link } from "@tanstack/react-router";
 
@@ -28,6 +28,7 @@ export const ALL_COURSES_LIST = [
 
 export function AdminMiniGamesPanel() {
   const [games, setGames] = useState<MiniGame[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingGame, setEditingGame] = useState<MiniGame | null>(null);
 
@@ -55,8 +56,15 @@ export function AdminMiniGamesPanel() {
 
   const { room: activeRoom, participants: roomParticipants } = useGameRoom(activeHostRoomCode);
 
+  const loadGames = async () => {
+    setLoading(true);
+    const data = await fetchGamesFromSupabase();
+    setGames(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    setGames(getStoredGames());
+    loadGames();
   }, []);
 
   const handleOpenCreateModal = (gameToEdit?: MiniGame) => {
@@ -90,7 +98,7 @@ export function AdminMiniGamesPanel() {
     setShowCreateModal(true);
   };
 
-  const handleSaveGame = (e: React.FormEvent) => {
+  const handleSaveGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) return;
 
@@ -106,14 +114,14 @@ export function AdminMiniGamesPanel() {
       created_at: editingGame?.created_at || new Date().toISOString(),
     };
 
-    const updated = saveStoredGame(newGame);
+    const updated = await saveStoredGame(newGame);
     setGames(updated);
     setShowCreateModal(false);
   };
 
-  const handleDeleteGame = (id: string) => {
+  const handleDeleteGame = async (id: string) => {
     if (confirm("Apakah Anda yakin ingin menghapus mini game ini?")) {
-      const updated = deleteStoredGame(id);
+      const updated = await deleteStoredGame(id);
       setGames(updated);
     }
   };
@@ -145,9 +153,12 @@ export function AdminMiniGamesPanel() {
     setFormQuestions(updated);
   };
 
-  const handleLaunchRoom = (gameId: string) => {
-    const newRoom = createRoom(gameId);
-    setActiveHostRoomCode(newRoom.room_code);
+  const handleLaunchRoom = async (gameId: string) => {
+    const gameToLaunch = games.find((g) => g.id === gameId);
+    const newRoom = await createRoom(gameId, gameToLaunch);
+    if (newRoom) {
+      setActiveHostRoomCode(newRoom.room_code);
+    }
   };
 
   const handleCopyCode = (code: string) => {
@@ -156,9 +167,9 @@ export function AdminMiniGamesPanel() {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const handleHostStatusChange = (status: any, currentIndex?: number) => {
+  const handleHostStatusChange = async (status: any, currentIndex?: number) => {
     if (activeHostRoomCode) {
-      updateRoomStatus(activeHostRoomCode, status, currentIndex);
+      await updateRoomStatus(activeHostRoomCode, status, currentIndex);
     }
   };
 

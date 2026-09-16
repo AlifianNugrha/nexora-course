@@ -54,70 +54,73 @@ export type GameVote = {
   reaction: "bagus_sekali" | "absolute_cinema" | "kurang" | "jelek";
 };
 
-// Dynamic Games Array (Fully Managed by Admin in Supabase Database)
-const MOCK_GAMES: MiniGame[] = [];
+// ============================================================
+// All Mini Games data is 100% managed by Supabase Database.
+// No local dummy data or local cache.
+// ============================================================
 
-// Helper LocalStorage Keys (Local Cache Fallback)
-const STORAGE_GAMES_KEY = "nexora_mini_games_list";
-const STORAGE_ROOMS_KEY = "nexora_game_rooms";
-const STORAGE_PARTICIPANTS_KEY = "nexora_game_participants";
-const STORAGE_VOTES_KEY = "nexora_game_votes";
-
-// Synchronous Sync from Local Cache
-export function getStoredGames(): MiniGame[] {
+// Fetch all games from Supabase `mini_games` table
+export async function fetchGamesFromSupabase(): Promise<MiniGame[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_GAMES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
+    const { data, error } = await supabase
+      .from("mini_games")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching mini_games from Supabase:", error);
+      return [];
+    }
+    return (data as MiniGame[]) || [];
+  } catch (err) {
+    console.error("Supabase fetch error:", err);
     return [];
   }
 }
 
-// Asynchronous Fetch from Supabase Table `mini_games`
-export async function fetchGamesFromSupabase(): Promise<MiniGame[]> {
+// Asynchronous Save / Upsert Game to Supabase
+export async function saveStoredGame(game: MiniGame): Promise<MiniGame[]> {
   try {
-    const { data, error } = await supabase.from("mini_games").select("*").order("created_at", { ascending: false });
-    if (!error && data) {
-      localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(data));
-      return data;
+    const { error } = await supabase
+      .from("mini_games")
+      .upsert({
+        id: game.id,
+        title: game.title,
+        game_type: game.game_type,
+        course_id: game.course_id || null,
+        division_slug: game.division_slug || null,
+        description: game.description || null,
+        prompt_instruction: game.prompt_instruction || null,
+        questions: game.questions || [],
+        created_at: game.created_at || new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error("Error upserting mini_game to Supabase:", error);
     }
   } catch (err) {
-    console.warn("Supabase fetch mini_games fallback:", err);
+    console.error("Error saving game to Supabase:", err);
   }
-  return getStoredGames();
+
+  return await fetchGamesFromSupabase();
 }
 
-export function saveStoredGame(game: MiniGame): MiniGame[] {
-  const games = getStoredGames();
-  const index = games.findIndex((g) => g.id === game.id);
-  let updated: MiniGame[];
-  if (index >= 0) {
-    updated = [...games];
-    updated[index] = game;
-  } else {
-    updated = [game, ...games];
+// Asynchronous Delete Game from Supabase
+export async function deleteStoredGame(gameId: string): Promise<MiniGame[]> {
+  try {
+    const { error } = await supabase
+      .from("mini_games")
+      .delete()
+      .eq("id", gameId);
+
+    if (error) {
+      console.error("Error deleting mini_game from Supabase:", error);
+    }
+  } catch (err) {
+    console.error("Error deleting game from Supabase:", err);
   }
-  localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(updated));
 
-  // Sync to Supabase
-  supabase.from("mini_games").upsert(game).then(({ error }) => {
-    if (error) console.error("Error upserting mini_game to Supabase:", error);
-  });
-
-  return updated;
-}
-
-export function deleteStoredGame(gameId: string): MiniGame[] {
-  const games = getStoredGames();
-  const updated = games.filter((g) => g.id !== gameId);
-  localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(updated));
-
-  // Sync to Supabase
-  supabase.from("mini_games").delete().eq("id", gameId).then(({ error }) => {
-    if (error) console.error("Error deleting mini_game from Supabase:", error);
-  });
-
-  return updated;
+  return await fetchGamesFromSupabase();
 }
 
 // Room Management Helper
@@ -130,261 +133,239 @@ export function generateRoomCode(): string {
   return code;
 }
 
-export function createRoom(gameId: string): GameRoom {
-  const games = getStoredGames();
-  const game = games.find((g) => g.id === gameId) || MOCK_GAMES[0];
+// Create Room directly in Supabase
+export async function createRoom(gameId: string, customGameData?: MiniGame): Promise<GameRoom | null> {
   const roomCode = generateRoomCode();
+  const roomId = `room-${Date.now()}`;
+
+  // If game_data is not passed, attempt to fetch from Supabase
+  let gameData = customGameData;
+  if (!gameData) {
+    const { data } = await supabase.from("mini_games").select("*").eq("id", gameId).maybeSingle();
+    if (data) gameData = data as MiniGame;
+  }
+
   const newRoom: GameRoom = {
-    id: `room-${Date.now()}`,
+    id: roomId,
     room_code: roomCode,
     game_id: gameId,
     status: "waiting",
     current_index: 0,
     created_at: new Date().toISOString(),
-    game_data: game,
+    game_data: gameData,
   };
 
-  clearRoomParticipantsAndVotes(roomCode);
+  // Clear existing participants and votes for this room code in Supabase
+  await clearRoomParticipantsAndVotes(roomCode);
 
-  const rooms = getStoredRooms();
-  rooms[roomCode] = newRoom;
-  localStorage.setItem(STORAGE_ROOMS_KEY, JSON.stringify(rooms));
-
-  // Sync to Supabase
-  supabase.from("game_rooms").insert({
+  const { error } = await supabase.from("game_rooms").insert({
     id: newRoom.id,
     room_code: roomCode,
     game_id: gameId,
     status: "waiting",
     current_index: 0,
-    game_data: game,
-    created_at: newRoom.created_at
-  }).then(({ error }) => {
-    if (error) console.error("Error creating game_room in Supabase:", error);
+    game_data: gameData || null,
+    created_at: newRoom.created_at,
   });
+
+  if (error) {
+    console.error("Error creating game_room in Supabase:", error);
+    return null;
+  }
 
   return newRoom;
 }
 
-export function clearRoomParticipantsAndVotes(roomCode: string): void {
+export async function clearRoomParticipantsAndVotes(roomCode: string): Promise<void> {
   const upper = roomCode.trim().toUpperCase();
   try {
-    const rawP = localStorage.getItem(STORAGE_PARTICIPANTS_KEY);
-    if (rawP) {
-      const allP: GameParticipant[] = JSON.parse(rawP);
-      const filteredP = allP.filter((p) => p.room_code !== upper);
-      localStorage.setItem(STORAGE_PARTICIPANTS_KEY, JSON.stringify(filteredP));
-    }
-
-    const rawV = localStorage.getItem(STORAGE_VOTES_KEY);
-    if (rawV) {
-      const allV: GameVote[] = JSON.parse(rawV);
-      const filteredV = allV.filter((v) => v.room_code !== upper);
-      localStorage.setItem(STORAGE_VOTES_KEY, JSON.stringify(filteredV));
-    }
-
-    // Sync deletion to Supabase
-    supabase.from("game_participants").delete().eq("room_code", upper);
-    supabase.from("game_votes").delete().eq("room_code", upper);
+    await Promise.all([
+      supabase.from("game_participants").delete().eq("room_code", upper),
+      supabase.from("game_votes").delete().eq("room_code", upper),
+    ]);
   } catch (err) {
-    console.error("Error clearing room data:", err);
+    console.error("Error clearing room data in Supabase:", err);
   }
 }
 
-export function getStoredRooms(): Record<string, GameRoom> {
+// Get Room by Code from Supabase DB directly
+export async function getRoomByCode(code: string): Promise<GameRoom | null> {
+  const upper = code.trim().toUpperCase();
   try {
-    const raw = localStorage.getItem(STORAGE_ROOMS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
+    const { data, error } = await supabase
+      .from("game_rooms")
+      .select("*")
+      .eq("room_code", upper)
+      .maybeSingle();
 
-export function getRoomByCode(code: string): GameRoom | null {
-  const rooms = getStoredRooms();
-  const upper = code.trim().toUpperCase();
-  return rooms[upper] || null;
-}
-
-export function updateRoomStatus(code: string, status: RoomStatus, currentIndex?: number): GameRoom | null {
-  const rooms = getStoredRooms();
-  const upper = code.trim().toUpperCase();
-  if (!rooms[upper]) {
-    rooms[upper] = {
-      id: `room-${Date.now()}`,
-      room_code: upper,
-      game_id: "mg-prompt-01",
-      status: status,
-      current_index: currentIndex || 0,
-      created_at: new Date().toISOString(),
-    };
-  } else {
-    rooms[upper].status = status;
-    if (currentIndex !== undefined) {
-      rooms[upper].current_index = currentIndex;
+    if (!error && data) {
+      return data as GameRoom;
     }
+  } catch (err) {
+    console.error("Error fetching room by code from Supabase:", err);
   }
-
-  localStorage.setItem(STORAGE_ROOMS_KEY, JSON.stringify(rooms));
-  window.dispatchEvent(new CustomEvent("game_room_updated", { detail: { code: upper, room: rooms[upper] } }));
-
-  // Sync to Supabase
-  supabase.from("game_rooms").update({
-    status,
-    ...(currentIndex !== undefined ? { current_index: currentIndex } : {})
-  }).eq("room_code", upper).then(({ error }) => {
-    if (error) console.error("Error updating room status in Supabase:", error);
-  });
-
-  return rooms[upper];
+  return null;
 }
 
-// Participants Management
-export function getRoomParticipants(roomCode: string): GameParticipant[] {
+// Update Room Status in Supabase DB directly
+export async function updateRoomStatus(code: string, status: RoomStatus, currentIndex?: number): Promise<GameRoom | null> {
+  const upper = code.trim().toUpperCase();
   try {
-    const raw = localStorage.getItem(STORAGE_PARTICIPANTS_KEY);
-    const all: GameParticipant[] = raw ? JSON.parse(raw) : [];
-    return all.filter((p) => p.room_code === roomCode.toUpperCase());
-  } catch {
-    return [];
+    const updatePayload: any = { status };
+    if (currentIndex !== undefined) {
+      updatePayload.current_index = currentIndex;
+    }
+
+    const { data, error } = await supabase
+      .from("game_rooms")
+      .update(updatePayload)
+      .eq("room_code", upper)
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as GameRoom;
+    }
+    if (error) {
+      console.error("Error updating room status in Supabase:", error);
+    }
+  } catch (err) {
+    console.error("Error updating room status:", err);
   }
+  return null;
 }
 
-export function joinRoomParticipant(participant: Omit<GameParticipant, "id">): GameParticipant {
+// Participants Management via Supabase
+export async function getRoomParticipants(roomCode: string): Promise<GameParticipant[]> {
+  const upper = roomCode.trim().toUpperCase();
+  try {
+    const { data, error } = await supabase
+      .from("game_participants")
+      .select("*")
+      .eq("room_code", upper)
+      .order("score", { ascending: false });
+
+    if (!error && data) {
+      return data as GameParticipant[];
+    }
+  } catch (err) {
+    console.error("Error fetching participants from Supabase:", err);
+  }
+  return [];
+}
+
+export async function joinRoomParticipant(participant: Omit<GameParticipant, "id">): Promise<GameParticipant | null> {
   const upperCode = participant.room_code.toUpperCase();
-  const raw = localStorage.getItem(STORAGE_PARTICIPANTS_KEY);
-  const all: GameParticipant[] = raw ? JSON.parse(raw) : [];
-  
-  const existingIndex = all.findIndex(
-    (p) => p.room_code === upperCode && p.user_id === participant.user_id
-  );
+  const participantId = `part-${participant.user_id}-${upperCode}`;
 
-  let updatedParticipant: GameParticipant;
-  if (existingIndex >= 0) {
-    all[existingIndex] = { ...all[existingIndex], ...participant };
-    updatedParticipant = all[existingIndex];
-  } else {
-    updatedParticipant = {
-      ...participant,
-      id: `part-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      room_code: upperCode,
-    };
-    all.push(updatedParticipant);
-  }
-
-  localStorage.setItem(STORAGE_PARTICIPANTS_KEY, JSON.stringify(all));
-  window.dispatchEvent(new CustomEvent("game_participants_updated", { detail: { roomCode: upperCode } }));
-
-  // Sync to Supabase
-  supabase.from("game_participants").upsert({
-    id: updatedParticipant.id,
-    room_code: upperCode,
-    user_id: participant.user_id,
-    user_name: participant.user_name,
-    score: participant.score || 0,
-    image_url: participant.image_url || null,
-    is_ready: participant.is_ready || false
-  }, { onConflict: 'room_code,user_id' }).then(({ error }) => {
-    if (error) console.error("Error joining participant in Supabase:", error);
-  });
-
-  return updatedParticipant;
-}
-
-export function submitParticipantArtwork(roomCode: string, userId: string, imageUrl: string): void {
-  const upperCode = roomCode.toUpperCase();
-  const raw = localStorage.getItem(STORAGE_PARTICIPANTS_KEY);
-  const all: GameParticipant[] = raw ? JSON.parse(raw) : [];
-  const index = all.findIndex((p) => p.room_code === upperCode && p.user_id === userId);
-  if (index >= 0) {
-    all[index].image_url = imageUrl;
-    all[index].is_ready = true;
-    localStorage.setItem(STORAGE_PARTICIPANTS_KEY, JSON.stringify(all));
-    window.dispatchEvent(new CustomEvent("game_participants_updated", { detail: { roomCode: upperCode } }));
-  }
-
-  // Sync to Supabase
-  supabase.from("game_participants")
-    .update({ image_url: imageUrl, is_ready: true })
-    .match({ room_code: upperCode, user_id: userId })
-    .then(({ error }) => {
-      if (error) console.error("Error submitting artwork to Supabase:", error);
-    });
-}
-
-export function addParticipantScore(roomCode: string, userId: string, points: number): void {
-  const upperCode = roomCode.toUpperCase();
-  const raw = localStorage.getItem(STORAGE_PARTICIPANTS_KEY);
-  const all: GameParticipant[] = raw ? JSON.parse(raw) : [];
-  const index = all.findIndex((p) => p.room_code === upperCode && p.user_id === userId);
-  let newScore = points;
-  if (index >= 0) {
-    all[index].score = (all[index].score || 0) + points;
-    newScore = all[index].score;
-    localStorage.setItem(STORAGE_PARTICIPANTS_KEY, JSON.stringify(all));
-    window.dispatchEvent(new CustomEvent("game_participants_updated", { detail: { roomCode: upperCode } }));
-  }
-
-  // Sync to Supabase
-  supabase.from("game_participants")
-    .update({ score: newScore })
-    .match({ room_code: upperCode, user_id: userId })
-    .then(({ error }) => {
-      if (error) console.error("Error updating score in Supabase:", error);
-    });
-}
-
-// Vote Storage
-export function getRoomVotes(roomCode: string): GameVote[] {
   try {
-    const raw = localStorage.getItem(STORAGE_VOTES_KEY);
-    const all: GameVote[] = raw ? JSON.parse(raw) : [];
-    return all.filter((v) => v.room_code === roomCode.toUpperCase());
-  } catch {
-    return [];
+    const { data, error } = await supabase.from("game_participants").upsert(
+      {
+        id: participantId,
+        room_code: upperCode,
+        user_id: participant.user_id,
+        user_name: participant.user_name,
+        score: participant.score || 0,
+        image_url: participant.image_url || null,
+        is_ready: participant.is_ready || false,
+      },
+      { onConflict: "room_code,user_id" }
+    ).select().maybeSingle();
+
+    if (!error && data) {
+      return data as GameParticipant;
+    }
+    if (error) {
+      console.error("Error joining participant in Supabase:", error);
+    }
+  } catch (err) {
+    console.error("Error joining participant:", err);
+  }
+  return null;
+}
+
+export async function submitParticipantArtwork(roomCode: string, userId: string, imageUrl: string): Promise<void> {
+  const upperCode = roomCode.toUpperCase();
+  try {
+    const { error } = await supabase
+      .from("game_participants")
+      .update({ image_url: imageUrl, is_ready: true })
+      .match({ room_code: upperCode, user_id: userId });
+
+    if (error) {
+      console.error("Error submitting artwork to Supabase:", error);
+    }
+  } catch (err) {
+    console.error("Error submitting artwork:", err);
   }
 }
 
-export function castVote(vote: GameVote): void {
+export async function addParticipantScore(roomCode: string, userId: string, points: number, currentScore: number): Promise<void> {
+  const upperCode = roomCode.toUpperCase();
+  const newScore = currentScore + points;
+  try {
+    const { error } = await supabase
+      .from("game_participants")
+      .update({ score: newScore })
+      .match({ room_code: upperCode, user_id: userId });
+
+    if (error) {
+      console.error("Error updating score in Supabase:", error);
+    }
+  } catch (err) {
+    console.error("Error updating score:", err);
+  }
+}
+
+// Votes Management via Supabase
+export async function getRoomVotes(roomCode: string): Promise<GameVote[]> {
+  const upperCode = roomCode.trim().toUpperCase();
+  try {
+    const { data, error } = await supabase
+      .from("game_votes")
+      .select("*")
+      .eq("room_code", upperCode);
+
+    if (!error && data) {
+      return data as GameVote[];
+    }
+  } catch (err) {
+    console.error("Error fetching votes from Supabase:", err);
+  }
+  return [];
+}
+
+export async function castVote(vote: GameVote, targetCurrentScore: number = 0): Promise<void> {
   const upperCode = vote.room_code.toUpperCase();
-  const raw = localStorage.getItem(STORAGE_VOTES_KEY);
-  const all: GameVote[] = raw ? JSON.parse(raw) : [];
-  
-  const existingIdx = all.findIndex(
-    (v) => v.room_code === upperCode && v.target_user_id === vote.target_user_id && v.voter_user_id === vote.voter_user_id
-  );
+  try {
+    const { error } = await supabase.from("game_votes").upsert(
+      {
+        room_code: upperCode,
+        target_user_id: vote.target_user_id,
+        voter_user_id: vote.voter_user_id,
+        reaction: vote.reaction,
+      },
+      { onConflict: "room_code,target_user_id,voter_user_id" }
+    );
 
-  if (existingIdx >= 0) {
-    all[existingIdx] = { ...vote, room_code: upperCode };
-  } else {
-    all.push({ ...vote, room_code: upperCode });
+    if (error) {
+      console.error("Error casting vote to Supabase:", error);
+    }
+
+    const pointsMap = {
+      absolute_cinema: 5,
+      bagus_sekali: 3,
+      kurang: 1,
+      jelek: 0,
+    };
+    const pts = pointsMap[vote.reaction] || 0;
+    await addParticipantScore(upperCode, vote.target_user_id, pts, targetCurrentScore);
+  } catch (err) {
+    console.error("Error casting vote:", err);
   }
-
-  localStorage.setItem(STORAGE_VOTES_KEY, JSON.stringify(all));
-
-  const pointsMap = {
-    absolute_cinema: 5,
-    bagus_sekali: 3,
-    kurang: 1,
-    jelek: 0,
-  };
-  const pts = pointsMap[vote.reaction] || 0;
-  addParticipantScore(upperCode, vote.target_user_id, pts);
-
-  window.dispatchEvent(new CustomEvent("game_votes_updated", { detail: { roomCode: upperCode } }));
-
-  // Sync to Supabase
-  supabase.from("game_votes").upsert({
-    room_code: upperCode,
-    target_user_id: vote.target_user_id,
-    voter_user_id: vote.voter_user_id,
-    reaction: vote.reaction
-  }, { onConflict: 'room_code,target_user_id,voter_user_id' }).then(({ error }) => {
-    if (error) console.error("Error casting vote to Supabase:", error);
-  });
 }
 
-// React Hook for Realtime Supabase & Local Room State
+// React Hook for Realtime Supabase Room State
 export function useGameRoom(roomCode: string | null) {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [participants, setParticipants] = useState<GameParticipant[]>([]);
@@ -394,34 +375,24 @@ export function useGameRoom(roomCode: string | null) {
     if (!roomCode) return;
     const upper = roomCode.trim().toUpperCase();
 
-    // 1. Local Fallback
-    const localR = getRoomByCode(upper);
-    const localP = getRoomParticipants(upper);
-    const localV = getRoomVotes(upper);
-    
-    setRoom(localR);
-    setParticipants(localP);
-    setVotes(localV);
-
-    // 2. Fetch directly from Supabase
     try {
       const [roomRes, partRes, voteRes] = await Promise.all([
         supabase.from("game_rooms").select("*").eq("room_code", upper).maybeSingle(),
-        supabase.from("game_participants").select("*").eq("room_code", upper),
-        supabase.from("game_votes").select("*").eq("room_code", upper)
+        supabase.from("game_participants").select("*").eq("room_code", upper).order("score", { ascending: false }),
+        supabase.from("game_votes").select("*").eq("room_code", upper),
       ]);
 
       if (roomRes.data) {
-        setRoom(roomRes.data);
+        setRoom(roomRes.data as GameRoom);
       }
-      if (partRes.data && partRes.data.length > 0) {
-        setParticipants(partRes.data);
+      if (partRes.data) {
+        setParticipants(partRes.data as GameParticipant[]);
       }
-      if (voteRes.data && voteRes.data.length > 0) {
-        setVotes(voteRes.data);
+      if (voteRes.data) {
+        setVotes(voteRes.data as GameVote[]);
       }
     } catch (err) {
-      console.warn("Supabase Realtime fetch error (falling back to local):", err);
+      console.error("Supabase Realtime fetch error:", err);
     }
   }, [roomCode]);
 
@@ -431,38 +402,30 @@ export function useGameRoom(roomCode: string | null) {
 
     fetchRealtimeRoomData();
 
-    // 1. Local window event listeners
-    const handleRoomUpdate = (e: any) => {
-      if (e.detail?.code === upper) fetchRealtimeRoomData();
-    };
-    const handleParticipantsUpdate = (e: any) => {
-      if (e.detail?.roomCode?.toUpperCase() === upper) fetchRealtimeRoomData();
-    };
-    const handleVotesUpdate = (e: any) => {
-      if (e.detail?.roomCode?.toUpperCase() === upper) fetchRealtimeRoomData();
-    };
-
-    window.addEventListener("game_room_updated", handleRoomUpdate);
-    window.addEventListener("game_participants_updated", handleParticipantsUpdate);
-    window.addEventListener("game_votes_updated", handleVotesUpdate);
-    window.addEventListener("storage", fetchRealtimeRoomData);
-
-    // 2. Supabase Realtime Channel Subscription
+    // Supabase Realtime Channel Subscription
     const channel = supabase
       .channel(`game_room_${upper}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_rooms', filter: `room_code=eq.${upper}` }, () => fetchRealtimeRoomData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_participants', filter: `room_code=eq.${upper}` }, () => fetchRealtimeRoomData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_votes', filter: `room_code=eq.${upper}` }, () => fetchRealtimeRoomData())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_rooms", filter: `room_code=eq.${upper}` },
+        () => fetchRealtimeRoomData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_participants", filter: `room_code=eq.${upper}` },
+        () => fetchRealtimeRoomData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_votes", filter: `room_code=eq.${upper}` },
+        () => fetchRealtimeRoomData()
+      )
       .subscribe();
 
-    // 3. 1.5s Polling loop fallback across devices
+    // 1.5s Polling loop fallback
     const interval = setInterval(fetchRealtimeRoomData, 1500);
 
     return () => {
-      window.removeEventListener("game_room_updated", handleRoomUpdate);
-      window.removeEventListener("game_participants_updated", handleParticipantsUpdate);
-      window.removeEventListener("game_votes_updated", handleVotesUpdate);
-      window.removeEventListener("storage", fetchRealtimeRoomData);
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
@@ -470,3 +433,4 @@ export function useGameRoom(roomCode: string | null) {
 
   return { room, participants, votes, refreshRoom: fetchRealtimeRoomData };
 }
+

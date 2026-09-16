@@ -1,7 +1,29 @@
 -- ============================================================
--- SUPABASE MINI GAMES REALTIME DATABASE SCHEMA
--- Salin dan paste seluruh isi script ini ke Supabase SQL Editor
--- (Supabase Dashboard -> SQL Editor -> New Query -> Run)
+-- SUPABASE MINI GAMES - RESET & BERSIHKAN DATA LAMA
+-- Jalankan di: Supabase Dashboard -> SQL Editor -> New Query -> Run
+-- PERINGATAN: Script ini akan HAPUS SEMUA data mini games lama!
+-- ============================================================
+
+-- STEP 1: Hapus semua data (urutan penting karena constraint relasi)
+-- Menggunakan DO block agar aman jika tabel belum ada
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'game_votes') THEN
+    TRUNCATE TABLE public.game_votes RESTART IDENTITY CASCADE;
+  END IF;
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'game_participants') THEN
+    TRUNCATE TABLE public.game_participants RESTART IDENTITY CASCADE;
+  END IF;
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'game_rooms') THEN
+    TRUNCATE TABLE public.game_rooms RESTART IDENTITY CASCADE;
+  END IF;
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mini_games') THEN
+    TRUNCATE TABLE public.mini_games RESTART IDENTITY CASCADE;
+  END IF;
+END $$;
+
+-- ============================================================
+-- STEP 2: Buat ulang tabel (aman, tidak akan error jika sudah ada)
 -- ============================================================
 
 -- 1. Tabel Mini Games (Daftar game divisi & kuis yang dibuat Admin)
@@ -89,3 +111,14 @@ BEGIN
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
+
+-- ============================================================
+-- STEP 5: Verifikasi - semua tabel harus menunjukkan 0 data
+-- ============================================================
+SELECT 'mini_games'        AS tabel, COUNT(*) AS jumlah_data FROM public.mini_games
+UNION ALL
+SELECT 'game_rooms'        AS tabel, COUNT(*) AS jumlah_data FROM public.game_rooms
+UNION ALL
+SELECT 'game_participants' AS tabel, COUNT(*) AS jumlah_data FROM public.game_participants
+UNION ALL
+SELECT 'game_votes'        AS tabel, COUNT(*) AS jumlah_data FROM public.game_votes;

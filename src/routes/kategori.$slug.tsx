@@ -3,8 +3,9 @@ import { ArrowLeft, ArrowRight, Layers, Gamepad2, Sparkles, Trophy, KeyRound } f
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CourseCard } from "@/components/CourseCard";
+import { useState, useEffect } from "react";
 import { fetchCategory, fetchCoursesByCategory } from "@/hooks/use-supabase";
-import { getStoredGames } from "@/hooks/use-mini-games";
+import { fetchGamesFromSupabase, MiniGame } from "@/hooks/use-mini-games";
 
 export const Route = createFileRoute("/kategori/$slug")({
   loader: async ({ params }) => {
@@ -47,7 +48,7 @@ export const Route = createFileRoute("/kategori/$slug")({
   component: CategoryPage,
 });
 
-function DesktopCategoryPage({ category, courses }: { category: any, courses: any[] }) {
+function DesktopCategoryPage({ category, courses, games }: { category: any, courses: any[], games: MiniGame[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
@@ -160,7 +161,7 @@ function DesktopCategoryPage({ category, courses }: { category: any, courses: an
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {getStoredGames()
+            {(games || [])
               .filter((g) => g.division_slug === category.slug || g.division_slug === "all" || !g.division_slug)
               .map((g) => (
                 <div
@@ -197,7 +198,7 @@ function DesktopCategoryPage({ category, courses }: { category: any, courses: an
   );
 }
 
-function MobileCategoryPage({ category, courses }: { category: any, courses: any[] }) {
+function MobileCategoryPage({ category, courses, games }: { category: any, courses: any[], games: MiniGame[] }) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-background pb-8">
       <SiteHeader />
@@ -273,7 +274,7 @@ function MobileCategoryPage({ category, courses }: { category: any, courses: any
 
           <div className="grid gap-3">
             {(() => {
-              const categoryGames = getStoredGames().filter(
+              const categoryGames = (games || []).filter(
                 (g) => g.division_slug === category.slug || g.division_slug === "all" || !g.division_slug
               );
 
@@ -364,14 +365,19 @@ function MobileCategoryPage({ category, courses }: { category: any, courses: any
 
 function CategoryPage() {
   const { category, courses } = Route.useLoaderData();
+  const [games, setGames] = useState<MiniGame[]>([]);
+
+  useEffect(() => {
+    fetchGamesFromSupabase().then((data) => setGames(data));
+  }, []);
 
   return (
     <>
       <div className="lg:hidden">
-        <MobileCategoryPage category={category} courses={courses} />
+        <MobileCategoryPage category={category} courses={courses} games={games} />
       </div>
       <div className="hidden lg:block">
-        <DesktopCategoryPage category={category} courses={courses} />
+        <DesktopCategoryPage category={category} courses={courses} games={games} />
       </div>
     </>
   );
