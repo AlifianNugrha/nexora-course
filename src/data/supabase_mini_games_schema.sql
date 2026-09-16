@@ -1,6 +1,6 @@
 -- ============================================================
 -- SUPABASE MINI GAMES REALTIME DATABASE SCHEMA & SEED DATA
--- Copy dan paste seluruh isi script ini ke Supabase SQL Editor
+-- Salin dan paste seluruh isi script ini ke Supabase SQL Editor
 -- (Supabase Dashboard -> SQL Editor -> New Query -> Run)
 -- ============================================================
 
@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS public.game_votes (
 
 -- ============================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
--- Mengizinkan akses Public Read/Write untuk multiplayer game
 -- ============================================================
 
 ALTER TABLE public.mini_games ENABLE ROW LEVEL SECURITY;
@@ -77,7 +76,6 @@ CREATE POLICY "Public access on game_votes" ON public.game_votes FOR ALL USING (
 
 -- ============================================================
 -- ENABLE SUPABASE REALTIME MULTIPLAYER SYNC
--- Mengaktifkan sync realtime websocket antar perangkat
 -- ============================================================
 
 DO $$
@@ -93,7 +91,7 @@ EXCEPTION
 END $$;
 
 -- ============================================================
--- INITIAL SEED DATA (Mini Games Bawaan Multi-Divisi)
+-- INITIAL SEED DATA (Menggunakan Dollar-Quoting $$ agar aman)
 -- ============================================================
 
 INSERT INTO public.mini_games (id, title, game_type, course_id, division_slug, description, prompt_instruction, questions)
@@ -116,13 +114,13 @@ VALUES
     'front-end',
     'Pertarungan pengetahuan cepat seputar HTML, CSS, JavaScript, dan React!',
     '',
-    '[
+    $$[
       {"id":"q1","question":"Manakah tag HTML yang digunakan untuk membuat judul utama halaman?","options":["<h1>","<heading>","<head>","<title>"],"correctAnswer":0,"timeLimit":15},
       {"id":"q2","question":"Sifat CSS manakah yang digunakan untuk membuat elemen fleksibel di satu baris?","options":["display: block","display: flex","position: absolute","float: left"],"correctAnswer":1,"timeLimit":15},
       {"id":"q3","question":"Hook React manakah yang digunakan untuk menyimpan state lokal pada komponen?","options":["useEffect","useMemo","useState","useContext"],"correctAnswer":2,"timeLimit":15},
       {"id":"q4","question":"Apakah singkatan dari DOM dalam pengembangan web?","options":["Data Object Model","Document Object Model","Digital Oriented Module","Desktop Order Method"],"correctAnswer":1,"timeLimit":15},
       {"id":"q5","question":"Manakah perintah git yang digunakan untuk mengunggah perubahan ke remote repository?","options":["git commit","git clone","git push","git pull"],"correctAnswer":2,"timeLimit":15}
-    ]'::jsonb
+    ]$$::jsonb
   ),
   (
     'mg-quiz-mobile-01',
@@ -132,12 +130,12 @@ VALUES
     'mobile-dev',
     'Pertarungan pengetahuan seputar React Native, Flutter, mobile architecture & cross-platform!',
     '',
-    '[
+    $$[
       {"id":"mq1","question":"Komponen utama React Native yang digunakan untuk membungkus tampilan UI adalah?","options":["<View>","<div>","<Container>","<Layout>"],"correctAnswer":0,"timeLimit":15},
       {"id":"mq2","question":"Bahasa pemrograman utama yang digunakan dalam pengembangan aplikasi Flutter adalah?","options":["Java","Swift","Dart","TypeScript"],"correctAnswer":2,"timeLimit":15},
       {"id":"mq3","question":"Perintah CLI untuk membuat build APK/bundle pada React Native (Expo) adalah?","options":["npx expo build","eas build","react-native run-android","npm run build-apk"],"correctAnswer":1,"timeLimit":15},
       {"id":"mq4","question":"Widget utama di Flutter yang nilainya tidak pernah berubah setelah di-render adalah?","options":["StatefulWidget","StatelessWidget","InheritedWidget","FlexibleWidget"],"correctAnswer":1,"timeLimit":15}
-    ]'::jsonb
+    ]$$::jsonb
   ),
   (
     'mg-prompt-mobile-01',
@@ -157,10 +155,10 @@ VALUES
     'back-end',
     'Uji pemahaman REST API, Node.js, PostgreSQL & SQL queries!',
     '',
-    '[
+    $$[
       {"id":"bq1","question":"HTTP method manakah yang digunakan untuk memperbarui sebagian data resource?","options":["GET","POST","PUT","PATCH"],"correctAnswer":3,"timeLimit":15},
       {"id":"bq2","question":"Perintah SQL untuk mengambil data tanpa duplikasi adalah?","options":["SELECT UNIQUE","SELECT DISTINCT","SELECT DIFFERENT","SELECT FILTER"],"correctAnswer":1,"timeLimit":15}
-    ]'::jsonb
+    ]$$::jsonb
   )
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
