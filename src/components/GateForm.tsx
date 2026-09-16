@@ -1,0 +1,218 @@
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { z } from "zod";
+import { Lock, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { submitForm } from "@/hooks/use-supabase";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/use-auth";
+
+const schema = z.object({
+  name: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email("Email tidak valid").optional().or(z.literal("")),
+  phone: z.string().trim().optional().or(z.literal("")),
+  className: z.string().trim().min(1, "Kelas wajib diisi").max(40),
+});
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  courseTitle: string;
+  courseId: string;
+  materialLink: string;
+};
+
+export function GateForm({ open, onOpenChange, courseTitle, courseId, materialLink }: Props) {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [form, setForm] = useState({ name: "", email: "", phone: "", className: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && profile) {
+      setForm(prev => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        email: profile.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [open, profile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = schema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.issues.forEach((i) => {
+        if (i.path[0]) fieldErrors[i.path[0] as string] = i.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
+
+    try {
+      // Submit ke Supabase
+      await submitForm({
+        course: courseId,
+        event_name: courseTitle,
+        name: form.name || "Anonim",
+        email: form.email || "noemail@example.com",
+        phone: form.phone || "-",
+        class_name: form.className,
+      });
+
+      setSubmitted(true);
+
+      // Update enrollment metadata in background (non-blocking)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          const enrolled = session.user.user_metadata?.enrolled_courses || [];
+          if (!enrolled.includes(courseId)) {
+            supabase.auth.updateUser({
+              data: { enrolled_courses: [...enrolled, courseId] }
+            });
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal memproses pendaftaran: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoToMateri = () => {
+    onOpenChange(false);
+    setTimeout(() => {
+      navigate({ to: "/materi/$courseId", params: { courseId } });
+    }, 200);
+  };
+
+  const reset = () => {
+    setSubmitted(false);
+    setSubmitting(false);
+    setForm({ name: "", email: "", phone: "", className: "" });
+    setErrors({});
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setTimeout(reset, 200);
+      }}
+    >
+      <DialogContent className="w-[92vw] max-w-sm rounded-[2rem] border-border/50 p-0 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-[110]">
+        {!submitted ? (
+          <div className="p-5">
+            <DialogHeader className="space-y-1.5 text-left">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[image:var(--gradient-primary)] text-primary-foreground shadow-soft">
+                <Lock className="h-4 w-4" />
+              </div>
+              <DialogTitle className="text-xl font-extrabold bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">
+                Akses Materi Course
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Isi data berikut untuk membuka materi{" "}
+                <span className="font-semibold text-foreground">{courseTitle}</span>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="className">Pilih Kelas</Label>
+                <Select
+                  value={form.className}
+                  onValueChange={(value) => setForm({ ...form, className: value })}
+                >
+                  <SelectTrigger className="h-12 rounded-xl border-border bg-slate-50 focus:ring-primary dark:bg-secondary">
+                    <SelectValue placeholder="Pilih kelas kamu" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border">
+                    <SelectItem value="TIA2">TIA2</SelectItem>
+                    <SelectItem value="TIA4">TIA4</SelectItem>
+                    <SelectItem value="TIA6">TIA6</SelectItem>
+                    <SelectItem value="TIC2">TIC2</SelectItem>
+                    <SelectItem value="TIC4">TIC4</SelectItem>
+                    <SelectItem value="TIC6">TIC6</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.className && (
+                  <p className="text-xs text-destructive">{errors.className}</p>
+                )}
+              </div>
+
+
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="group w-full rounded-xl bg-white shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
+                size="lg"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" /> 
+                    <span className="font-bold text-primary">Memproses...</span>
+                  </>
+                ) : (
+                  <span className="font-bold text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
+                    Buka Materi
+                  </span>
+                )}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Data kamu hanya digunakan untuk akses materi.
+              </p>
+            </form>
+          </div>
+        ) : (
+          <div className="p-6 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-secondary text-primary">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h3 className="mt-4 text-lg font-bold text-primary-deep">
+              Materi siap diakses!
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Halo <span className="font-semibold text-foreground">{form.name}</span>, kamu bisa langsung mengakses materi sekarang.
+            </p>
+            <button
+              type="button"
+              onClick={handleGoToMateri}
+              className="relative z-[120] group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold shadow-[0_4px_14px_0_rgba(0,0,0,0.05)] ring-1 ring-border/50 transition-all hover:-translate-y-1 hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)] active:scale-95"
+            >
+              <span className="text-primary transition-all duration-300 group-hover:bg-gradient-to-br group-hover:from-purple-600 group-hover:via-pink-500 group-hover:to-blue-600 group-hover:bg-clip-text group-hover:text-transparent">
+                Buka Halaman Materi
+              </span>
+              <ArrowRight className="h-4 w-4 text-primary transition-transform duration-300 group-hover:translate-x-1 group-hover:text-purple-600" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="mt-2 inline-flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" /> Tutup
+            </button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

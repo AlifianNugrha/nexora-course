@@ -1,0 +1,833 @@
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { useState, useEffect, useCallback } from "react";
+import { 
+  LayoutDashboard, BookOpen, Layers, Calendar, FileText, Users, 
+  Plus, Edit, Trash2, LogOut, ArrowLeft,
+  Image as ImageIcon, X, Menu, Camera, Ticket, Cloud, Loader2
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { AdminSidebar, AdminHeader, type Tab } from "@/components/admin/AdminSidebar";
+import { AdminUsersPanel } from "@/components/admin/AdminUsersPanel";
+import { AdminAbsensiPanel } from "@/components/admin/AdminAbsensiPanel";
+import { AdminExamPanel } from "@/components/admin/AdminExamPanel";
+import { AdminResultsPanel } from "@/components/admin/AdminResultsPanel";
+import { AdminMiniGamesPanel } from "@/components/admin/AdminMiniGamesPanel";
+
+export const Route = createFileRoute("/admin")({
+  beforeLoad: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/login" });
+    
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, division_id")
+      .eq("id", session.user.id)
+      .maybeSingle();
+      
+    if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) {
+      throw redirect({ to: "/login" });
+    }
+  },
+  component: AdminCMS,
+});
+
+function AdminCMS() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any[]>([]);
+  const [stats, setStats] = useState({ courses: 0, categories: 0, absensi: 0, materials: 0, events: 0, gallery: 0, announcements: 0, users: 0 });
+  const [adminRole, setAdminRole] = useState<string>("super_admin");
+  const [adminDivisionId, setAdminDivisionId] = useState<string | null>(null);
+
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [formData, setFormData] = useState<any>({});
+  const [categories, setCategories] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [driveSubmitting, setDriveSubmitting] = useState(false);
+
+  // Auth check - now uses Supabase session + role
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { navigate({ to: "/login" }); return; }
+      const { data: profile } = await supabase.from("user_profiles").select("role, division_id").eq("id", session.user.id).maybeSingle();
+      if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) { navigate({ to: "/login" }); return; }
+      setAdminRole(profile.role);
+      setAdminDivisionId(profile.division_id);
+      sessionStorage.setItem("admin_auth", "true");
+      sessionStorage.setItem("admin_role", profile.role);
+    };
+    checkAuth();
+  }, [navigate]);
+
+  // Data fetching
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (activeTab === "dashboard") {
+        const [cat, crs, sub, mat, evt, gal, ann, usr] = await Promise.all([
+          supabase.from("categories").select("*", { count: "exact", head: true }),
+          supabase.from("courses").select("*", { count: "exact", head: true }),
+          supabase.from("form_submissions").select("*", { count: "exact", head: true }),
+          supabase.from("materials").select("*", { count: "exact", head: true }),
+          supabase.from("events").select("*", { count: "exact", head: true }),
+          supabase.from("gallery").select("*", { count: "exact", head: true }),
+          supabase.from("announcements").select("*", { count: "exact", head: true }),
+          supabase.from("user_profiles").select("*", { count: "exact", head: true })
+        ]);
+        setStats({
+          categories: cat.count || 0,
+          courses: crs.count || 0,
+          absensi: sub.count || 0,
+          materials: mat.count || 0,
+          events: evt.count || 0,
+          gallery: gal.count || 0,
+          announcements: ann.count || 0,
+          users: usr.count || 0
+        });
+      } else if (activeTab === "absensi" || activeTab === "users") {
+        // Handled by their own panels
+        setData([]);
+      } else {
+        const table = activeTab;
+        let query = supabase.from(table).select(
+          activeTab === "materials" || activeTab === "schedules" ? "*, courses(title)" : "*"
+        ).order("created_at", { ascending: false });
+        // Mentor: filter by division
+        if (adminRole === "mentor" && adminDivisionId && (activeTab === "courses" || activeTab === "materials" || activeTab === "schedules")) {
+          if (activeTab === "courses") query = query.eq("category_id", adminDivisionId);
+        }
+        const { data: res } = await query;
+        setData(res || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleLogout = async () => {
+    sessionStorage.removeItem("admin_auth");
+    sessionStorage.removeItem("admin_role");
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Hapus item ini?")) return;
+    const table = activeTab;
+    await supabase.from(table).delete().eq("id", id);
+    fetchData();
+  };
+
+  const openAddModal = async () => {
+    setEditingItem(null);
+    setFormData({});
+    // Fetch relations for dropdowns
+    const { data: catData } = await supabase.from("categories").select("id, name");
+    const { data: courseData } = await supabase.from("courses").select("id, title");
+    setCategories(catData || []);
+    setCourses(courseData || []);
+    setShowModal(true);
+  };
+
+  const openEditModal = async (item: any) => {
+    setEditingItem(item);
+    setFormData(item);
+    const { data: catData } = await supabase.from("categories").select("id, name");
+    const { data: courseData } = await supabase.from("courses").select("id, title");
+    setCategories(catData || []);
+    setCourses(courseData || []);
+    setShowModal(true);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('thumbnails').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(fileName);
+      
+      const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+      setFormData((prev: any) => ({ ...prev, [field]: publicUrl }));
+    } catch (err) {
+      console.error(err);
+      alert("Upload gagal. Pastikan bucket 'thumbnails' sudah dibuat.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const table = activeTab;
+      const { categories: _, courses: __, ...saveData } = formData;
+      if (editingItem) {
+        const { error } = await supabase.from(table).update(saveData).eq("id", editingItem.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from(table).insert([saveData]);
+        if (error) throw error;
+      }
+      setShowModal(false);
+      fetchData();
+    } catch (err: any) {
+      alert(`Error: ${err.message || "Gagal menyimpan"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnectDrive = () => {
+    const client = (window as any).google.accounts.oauth2.initTokenClient({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "602508081764-1c920jj3qh75oikb8mt2r7smal114hkc.apps.googleusercontent.com",
+      scope: "https://www.googleapis.com/auth/drive.file",
+      callback: (response: any) => {
+        if (response.access_token) {
+          setGoogleToken(response.access_token);
+          alert("Koneksi Google Drive Berhasil!");
+        }
+      },
+    });
+    client.requestAccessToken();
+  };
+
+  const handleUploadToDrive = async (e: React.ChangeEvent<HTMLInputElement>, targetField: string, folderName?: string) => {
+    const file = e.target.files?.[0];
+    if (!file || !googleToken) return;
+    setDriveSubmitting(true);
+
+    try {
+      const authHeader = new Headers({ Authorization: `Bearer ${googleToken}` });
+      
+      // Determine folder path
+      let rootFolderName = "Nexora_Files";
+      let subFolderName = folderName || (activeTab === "materials" ? (courses.find(c => c.id === formData.course_id)?.title || "Materials") : activeTab);
+
+      // 1. Find or Create Root Folder "Nexora_Files"
+      let rootFolderId = "";
+      const rootSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${rootFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const rootResult = await rootSearch.json();
+      
+      if (rootResult.files && rootResult.files.length > 0) {
+        rootFolderId = rootResult.files[0].id;
+      } else {
+        const createRoot = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
+          body: JSON.stringify({ name: rootFolderName, mimeType: "application/vnd.google-apps.folder" }),
+        });
+        const newRoot = await createRoot.json();
+        rootFolderId = newRoot.id;
+      }
+
+      // 2. Find or Create Sub Folder
+      let subFolderId = "";
+      const subSearch = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${subFolderName}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`, { headers: authHeader });
+      const subResult = await subSearch.json();
+
+      if (subResult.files && subResult.files.length > 0) {
+        subFolderId = subResult.files[0].id;
+      } else {
+        const createSub = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(authHeader), "Content-Type": "application/json" }),
+          body: JSON.stringify({ name: subFolderName, mimeType: "application/vnd.google-apps.folder", parents: [rootFolderId] }),
+        });
+        const newSub = await createSub.json();
+        subFolderId = newSub.id;
+      }
+
+      // 3. Metadata for file
+      const metadata = {
+        name: file.name,
+        mimeType: file.type,
+        parents: [subFolderId],
+      };
+
+      // 4. Multipart body
+      const formBody = new FormData();
+      formBody.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      formBody.append("file", file);
+
+      // 5. Upload to Google Drive
+      const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink", {
+        method: "POST",
+        headers: authHeader,
+        body: formBody,
+      });
+
+      const fileData = await uploadResponse.json();
+      if (fileData.error) throw new Error(fileData.error.message);
+
+      // 6. Set permission to PUBLIC
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+          method: "POST",
+          headers: new Headers({ Authorization: `Bearer ${googleToken}`, "Content-Type": "application/json" }),
+          body: JSON.stringify({ role: "reader", type: "anyone" }),
+        });
+      } catch (permErr) {
+        console.warn("Permission set failed, continuing...", permErr);
+      }
+
+      // 7. Convert to Direct Link if it's an image
+      let finalUrl = fileData.webViewLink;
+      if (file.type.startsWith("image/")) {
+        // Format ini jauh lebih stabil untuk menampilkan gambar Google Drive di website
+        finalUrl = `https://lh3.googleusercontent.com/d/${fileData.id}`;
+      }
+
+      // 8. Update form data
+      setFormData((prev: any) => ({ ...prev, [targetField]: finalUrl }));
+      alert(`Berhasil! Tersimpan di folder ${subFolderName}`);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal upload ke Drive: ${err.message}`);
+    } finally {
+      setDriveSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-slate-50">
+      {/* Sidebar - role-based */}
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
+        onLogout={handleLogout}
+        role={adminRole}
+      />
+
+      {/* Main */}
+      <main className="flex-1 overflow-auto w-full lg:w-auto">
+        <AdminHeader activeTab={activeTab} onMenuClick={() => setIsSidebarOpen(true)}>
+          <button
+            onClick={handleConnectDrive}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold shadow-lg transition-all hover:-translate-y-0.5 ${
+              googleToken
+                ? "bg-green-500 text-white shadow-green-500/20"
+                : "bg-white text-slate-700 ring-1 ring-border shadow-sm hover:bg-slate-50"
+            }`}
+          >
+            <Cloud className={`h-4 w-4 ${googleToken ? "animate-pulse" : ""}`} />
+            {googleToken ? "Drive Connected" : "Connect Drive"}
+          </button>
+          {activeTab !== "dashboard" && activeTab !== "absensi" && activeTab !== "users" && activeTab !== "exams" && activeTab !== "results" && (
+            <button onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all">
+              <Plus className="h-4 w-4" /> Add New
+            </button>
+          )}
+        </AdminHeader>
+
+        <div className="p-8">
+          {activeTab === "dashboard" ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Courses", value: stats.courses, icon: BookOpen, color: "bg-blue-500" },
+                { label: "Categories", value: stats.categories, icon: Layers, color: "bg-purple-500" },
+                { label: "Absensi", value: stats.absensi, icon: Users, color: "bg-green-500" },
+                { label: "Materials", value: stats.materials, icon: FileText, color: "bg-orange-500" },
+                { label: "Events", value: stats.events, icon: Ticket, color: "bg-rose-500" },
+                { label: "Gallery", value: stats.gallery, icon: Camera, color: "bg-indigo-500" },
+                ...(adminRole === "super_admin" ? [{ label: "Users", value: stats.users, icon: Users, color: "bg-teal-500" }] : []),
+              ].map((s) => (
+                <div key={s.label} className="rounded-3xl border border-border bg-white p-6 shadow-sm">
+                  <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${s.color} text-white`}>
+                    <s.icon className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
+                  <p className="mt-1 text-3xl font-extrabold">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : activeTab === "absensi" ? (
+            <AdminAbsensiPanel />
+          ) : activeTab === "users" ? (
+            <AdminUsersPanel />
+          ) : activeTab === "exams" ? (
+            <AdminExamPanel />
+          ) : activeTab === "mini_games" ? (
+            <AdminMiniGamesPanel />
+          ) : activeTab === "results" ? (
+            <AdminResultsPanel />
+          ) : (
+            <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    {false ? (
+                      <>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">User Info</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Course & Class</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Phone</th>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Date</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Info</th>
+                        {(activeTab === "materials" || activeTab === "schedules") && (
+                          <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground">Kelas</th>
+                        )}
+                      </>
+                    )}
+                    <th className="px-6 py-4 text-xs font-bold uppercase text-muted-foreground text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loading ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">Loading...</td></tr>
+                  ) : data.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">No records found.</td></tr>
+                  ) : data.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      {false ? (
+                        <>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.email}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                               {item.course === "Event Registration" ? (
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[8px] font-bold text-blue-600 uppercase">Event</span>
+                               ) : (
+                                  <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[8px] font-bold text-purple-600 uppercase">Course</span>
+                               )}
+                               <p className="text-sm font-medium">{item.event_name || item.course}</p>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">{item.class_name}</p>
+                          </td>
+                          <td className="px-6 py-4 text-sm">{item.phone}</td>
+                          <td className="px-6 py-4 text-xs text-muted-foreground">
+                            {new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {item.thumbnail ? (
+                                <img src={item.thumbnail} className="h-10 w-10 rounded-lg object-cover" />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><ImageIcon className="h-5 w-5" /></div>
+                              )}
+                              <div>
+                                <p className="text-sm font-bold">{item.title || item.name || item.topic || item.email}</p>
+                                <p className="text-[10px] font-mono text-muted-foreground">{item.slug || item.level || ""}</p>
+                              </div>
+                            </div>
+                          </td>
+                          {(activeTab === "materials" || activeTab === "schedules") && (
+                            <td className="px-6 py-4 text-sm text-primary">{item.courses?.title || "-"}</td>
+                          )}
+                        </>
+                      )}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => openEditModal(item)} className="p-2 hover:bg-slate-100 rounded-lg"><Edit className="h-4 w-4 text-slate-600" /></button>
+                          <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4 text-red-500" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+      
+      {/* GLOBAL LOADING OVERLAY FOR DRIVE UPLOAD */}
+      {driveSubmitting && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-10 shadow-2xl dark:bg-card">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-foreground">Sedang Mengunggah...</h3>
+              <p className="text-sm text-muted-foreground">Mohon tunggu, sedang merapikan file di Google Drive kamu.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL FORM ═══ */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-extrabold">{editingItem ? "Edit" : "Add New"} {activeTab}</h2>
+              <button onClick={() => setShowModal(false)} className="rounded-full p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-5">
+              {/* Title / Name */}
+              {(activeTab === "categories" || activeTab === "courses" || activeTab === "materials" || activeTab === "schedules" || activeTab === "events" || activeTab === "gallery" || activeTab === "announcements") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Title / Name / Topic</label>
+                  <input
+                    required
+                    className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.title || formData.name || formData.topic || ""}
+                    onChange={(e) => {
+                      const field = activeTab === "categories" ? "name" : activeTab === "schedules" ? "topic" : "title";
+                      setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Slug (categories) */}
+              {activeTab === "categories" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Slug</label>
+                  <input
+                    required placeholder="e.g. front-end-development"
+                    className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.slug || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, slug: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              {/* Thumbnail / Image */}
+              {(activeTab === "categories" || activeTab === "courses" || activeTab === "events" || activeTab === "gallery") && (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">
+                    {activeTab === "gallery" || activeTab === "events" ? "Image URL / Poster" : "Thumbnail Kelas"}
+                  </label>
+                  
+                  <div className="flex items-start gap-4 rounded-2xl border border-border/50 bg-slate-50/50 p-4">
+                    {(formData.thumbnail || formData.image_url) && (
+                      <img src={formData.thumbnail || formData.image_url} className="h-24 w-24 rounded-2xl object-cover border-2 border-white shadow-md" />
+                    )}
+                    
+                    <div className="flex-1 space-y-4">
+                      {/* Google Drive Section (Standalone) */}
+                      {googleToken ? (
+                        <div className="space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+                              const input = document.createElement("input");
+                              input.type = "file";
+                              input.accept = "image/*";
+                              input.onchange = (e: any) => handleUploadToDrive(e, field);
+                              input.click();
+                            }}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary-deep"
+                          >
+                            <Cloud className="h-4 w-4" />
+                            Upload ke Google Drive (Hemat Cloud)
+                          </button>
+                          <p className="text-[9px] text-muted-foreground italic px-1">File akan otomatis tersimpan rapi di folder Drive kamu.</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 text-center">
+                          <p className="text-[10px] font-medium text-primary">Connect Google Drive di atas untuk upload otomatis ke Drive.</p>
+                        </div>
+                      )}
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                        <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-white px-2">Atau</span></div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-slate-50">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Upload Lokal
+                          <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+                        </label>
+                        <input
+                          className="flex-[1.5] rounded-xl border border-border bg-white px-4 py-2 text-xs outline-none focus:border-primary"
+                          value={formData.thumbnail || formData.image_url || ""} 
+                          placeholder="Paste Link Gambar..."
+                          onChange={(e) => {
+                            const field = (activeTab === "gallery" || activeTab === "events") ? "image_url" : "thumbnail";
+                            setFormData((prev: any) => ({ ...prev, [field]: e.target.value }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {uploading && <p className="text-[10px] text-primary animate-pulse font-bold uppercase tracking-wider">Uploading to Supabase...</p>}
+                </div>
+              )}
+
+              {/* Course fields */}
+              {activeTab === "courses" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Category</label>
+                    <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.category_id || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, category_id: e.target.value }))}>
+                      <option value="">Select Category</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Level</label>
+                      <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.level || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, level: e.target.value }))}>
+                        <option value="">Select</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Duration</label>
+                      <input placeholder="e.g. 4 Weeks" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.duration || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, duration: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Instructor</label>
+                      <input placeholder="Mentor Name" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.instructor || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, instructor: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Lessons</label>
+                      <input type="number" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.lessons || 0}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, lessons: parseInt(e.target.value) }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
+                    <input className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.description || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Long Description</label>
+                    <textarea rows={3} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.long_description || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, long_description: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Syllabus (satu per baris)</label>
+                    <textarea rows={4} placeholder={"Introduction\nDesign Thinking\nPrototyping"} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={Array.isArray(formData.syllabus) ? formData.syllabus.join('\n') : ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, syllabus: e.target.value.split('\n').filter((s: string) => s.trim()) }))} />
+                  </div>
+                  <div className="space-y-2 flex items-center gap-2 mt-4 pt-4 border-t border-border">
+                    <input type="checkbox" id="is_closed_course" className="h-4 w-4"
+                      checked={formData.is_closed || false}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, is_closed: e.target.checked }))} />
+                    <label htmlFor="is_closed_course" className="text-sm font-bold text-red-600 cursor-pointer">Tutup Pendaftaran Kelas Ini (is_closed)</label>
+                  </div>
+                </div>
+              )}
+
+              {/* Course selector for schedules & materials */}
+              {(activeTab === "schedules" || activeTab === "materials") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Course</label>
+                  <select required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.course_id || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, course_id: e.target.value }))}>
+                    <option value="">Select Course</option>
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Material fields */}
+              {activeTab === "materials" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Order</label>
+                      <input type="number" required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.order || 0}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, order: parseInt(e.target.value) }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Link / Video File</label>
+                      <div className="flex flex-col gap-2">
+                        <input placeholder="https://youtube.com/..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                          value={formData.link || ""}
+                          onChange={(e) => setFormData((prev: any) => ({ ...prev, link: e.target.value }))} />
+                        
+                        {googleToken ? (
+                          <div className="flex items-center gap-2">
+                            <label className={`flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed py-2.5 text-[10px] font-bold transition-all ${
+                              driveSubmitting 
+                                ? "border-primary bg-primary/5 text-primary cursor-not-allowed" 
+                                : "border-primary/40 bg-primary/5 text-primary cursor-pointer hover:bg-primary/10"
+                            }`}>
+                              {driveSubmitting ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Proses Upload ke Drive...
+                                </>
+                              ) : (
+                                <>
+                                  <Cloud className="h-3 w-3" />
+                                  Upload File to Google Drive
+                                </>
+                              )}
+                              <input type="file" className="hidden" onChange={(e) => handleUploadToDrive(e, "link")} disabled={driveSubmitting} />
+                            </label>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground italic text-center">
+                            Connect Google Drive di atas untuk upload video langsung.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Content</label>
+                    <textarea rows={10} placeholder="Tulis isi materi..." className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary font-mono"
+                      value={formData.content || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, content: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+
+              {/* Schedule fields */}
+              {activeTab === "schedules" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Mentor</label>
+                    <input placeholder="Nama Mentor" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.mentor || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, mentor: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Date</label>
+                      <input type="date" required className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.date || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, date: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Time</label>
+                      <input placeholder="19:00 - 21:00" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                        value={formData.time || ""}
+                        onChange={(e) => setFormData((prev: any) => ({ ...prev, time: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Division selector for gallery */}
+              {activeTab === "gallery" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Divisi / Kategori</label>
+                  <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.category_id || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, category_id: e.target.value || null }))}>
+                    <option value="">— Tanpa Divisi —</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Description for events and gallery and categories */}
+              {(activeTab === "categories" || activeTab === "events" || activeTab === "gallery") && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">Description</label>
+                  <textarea rows={3} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                    value={formData.description || ""}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} />
+                </div>
+              )}
+              
+              {/* Date for events */}
+              {activeTab === "events" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Event Date</label>
+                    <input type="date" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.event_date || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, event_date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Location</label>
+                    <input placeholder="Online / Jakarta" className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.location || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, location: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+              {activeTab === "events" && (
+                <div className="space-y-2 flex items-center gap-2">
+                  <input type="checkbox" id="is_closed_event" className="h-4 w-4"
+                    checked={formData.is_closed || false}
+                    onChange={(e) => setFormData((prev: any) => ({ ...prev, is_closed: e.target.checked }))} />
+                  <label htmlFor="is_closed_event" className="text-sm font-bold text-red-600 cursor-pointer">Tutup Pendaftaran Event Ini (is_closed)</label>
+                </div>
+              )}
+
+              {/* Announcements */}
+              {activeTab === "announcements" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Content</label>
+                    <textarea rows={4} className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.content || ""}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, content: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Type</label>
+                    <select className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary"
+                      value={formData.type || "info"}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, type: e.target.value }))}>
+                      <option value="info">Info</option>
+                      <option value="warning">Warning</option>
+                      <option value="success">Success</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2 flex items-center gap-2">
+                    <input type="checkbox" id="is_active_ann" className="h-4 w-4"
+                      checked={formData.is_active !== false}
+                      onChange={(e) => setFormData((prev: any) => ({ ...prev, is_active: e.target.checked }))} />
+                    <label htmlFor="is_active_ann" className="text-sm font-bold text-foreground cursor-pointer">Active (Tampilkan)</label>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-6 border-t mt-8">
+                <button type="button" onClick={() => setShowModal(false)} className="rounded-xl px-6 py-2 text-sm font-bold text-muted-foreground hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={loading} className="rounded-xl bg-primary px-8 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50">
+                  {loading ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

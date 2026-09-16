@@ -1,0 +1,166 @@
+import { useState, useEffect } from "react";
+import { z } from "zod";
+import { Calendar, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { submitForm } from "@/hooks/use-supabase";
+import { useNavigate } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
+
+const schema = z.object({
+  name: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email("Email tidak valid").optional().or(z.literal("")),
+  phone: z.string().trim().optional().or(z.literal("")),
+  className: z.string().trim().min(1, "Asal Sekolah/Kelas wajib diisi").max(40),
+});
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  eventTitle: string;
+  eventId?: string;
+};
+
+export function EventForm({ open, onOpenChange, eventTitle, eventId }: Props) {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [form, setForm] = useState({ name: "", email: "", phone: "", className: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && profile) {
+      setForm(prev => ({
+        ...prev,
+        name: profile.full_name || prev.name,
+        email: profile.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [open, profile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = schema.safeParse(form);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.issues.forEach((i) => {
+        if (i.path[0]) fieldErrors[i.path[0] as string] = i.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
+
+    try {
+      // Submit ke form_submissions dengan 'course' diisi "Event Registration"
+      await submitForm({
+        course: "Event Registration",
+        event_name: eventTitle,
+        name: form.name || "Anonim",
+        email: form.email || "noemail@example.com",
+        phone: form.phone || "-",
+        class_name: form.className,
+      });
+
+      // Mark as registered in localStorage
+      const registered = JSON.parse(localStorage.getItem("registered_events") || "[]");
+      if (!registered.includes(eventTitle)) {
+        registered.push(eventTitle);
+        localStorage.setItem("registered_events", JSON.stringify(registered));
+      }
+
+      onOpenChange(false);
+      navigate({ to: "/event/success" });
+    } catch (err: any) {
+      console.error(err);
+      alert(`Gagal mendaftar event: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const reset = () => {
+    setSubmitting(false);
+    setForm({ name: "", email: "", phone: "", className: "" });
+    setErrors({});
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) setTimeout(reset, 200);
+      }}
+    >
+      <DialogContent className="w-[92vw] max-w-sm rounded-[2rem] border-border/50 p-0 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.15)]">
+          <div className="p-5">
+            <DialogHeader className="space-y-1.5 text-left">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-soft">
+                <Calendar className="h-4 w-4" />
+              </div>
+              <DialogTitle className="text-xl font-extrabold bg-gradient-to-br from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Daftar Event
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Isi data diri kamu untuk mendaftar di event{" "}
+                <span className="font-semibold text-foreground">{eventTitle}</span>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="className">Pilih Kelas</Label>
+                <Select
+                  value={form.className}
+                  onValueChange={(value) => setForm({ ...form, className: value })}
+                >
+                  <SelectTrigger className="h-12 rounded-xl border-border bg-slate-50 focus:ring-primary dark:bg-secondary">
+                    <SelectValue placeholder="Pilih kelas kamu" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border">
+                    <SelectItem value="TIA2">TIA2</SelectItem>
+                    <SelectItem value="TIA4">TIA4</SelectItem>
+                    <SelectItem value="TIA6">TIA6</SelectItem>
+                    <SelectItem value="TIC2">TIC2</SelectItem>
+                    <SelectItem value="TIC4">TIC4</SelectItem>
+                    <SelectItem value="TIC6">TIC6</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.className && (
+                  <p className="text-xs text-destructive">{errors.className}</p>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="group w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:opacity-90 active:scale-95 mt-2"
+                size="lg"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+                    <span className="font-bold">Memproses...</span>
+                  </>
+                ) : (
+                  <span className="font-bold">Daftar Sekarang</span>
+                )}
+              </Button>
+            </form>
+          </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
