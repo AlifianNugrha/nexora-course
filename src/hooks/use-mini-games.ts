@@ -197,11 +197,24 @@ const STORAGE_VOTES_KEY = "nexora_game_votes";
 export function getStoredGames(): MiniGame[] {
   try {
     const raw = localStorage.getItem(STORAGE_GAMES_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(MOCK_GAMES));
-      return MOCK_GAMES;
+    let games: MiniGame[] = raw ? JSON.parse(raw) : [];
+
+    // Smart merge: Ensure all default MOCK_GAMES exist in the list if missing from local cache
+    const existingIds = new Set(games.map((g) => g.id));
+    let updated = false;
+
+    for (const mockGame of MOCK_GAMES) {
+      if (!existingIds.has(mockGame.id)) {
+        games.push(mockGame);
+        updated = true;
+      }
     }
-    return JSON.parse(raw);
+
+    if (!raw || updated) {
+      localStorage.setItem(STORAGE_GAMES_KEY, JSON.stringify(games));
+    }
+
+    return games;
   } catch {
     return MOCK_GAMES;
   }
