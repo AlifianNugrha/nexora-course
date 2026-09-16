@@ -15,17 +15,20 @@ import { AdminMiniGamesPanel } from "@/components/admin/AdminMiniGamesPanel";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
+    const isLocalAdmin = sessionStorage.getItem("admin_auth") === "true";
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/login" });
+    if (!session && !isLocalAdmin) throw redirect({ to: "/login" });
     
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("role, division_id")
-      .eq("id", session.user.id)
-      .maybeSingle();
-      
-    if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) {
-      throw redirect({ to: "/login" });
+    if (session) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("role, division_id")
+        .eq("id", session.user.id)
+        .maybeSingle();
+        
+      if (profile && profile.role !== "super_admin" && profile.role !== "mentor" && !isLocalAdmin) {
+        throw redirect({ to: "/login" });
+      }
     }
   },
   component: AdminCMS,
@@ -51,17 +54,27 @@ function AdminCMS() {
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [driveSubmitting, setDriveSubmitting] = useState(false);
 
-  // Auth check - now uses Supabase session + role
+  // Auth check - uses Supabase session or local admin session
   useEffect(() => {
     const checkAuth = async () => {
+      const isLocalAdmin = sessionStorage.getItem("admin_auth") === "true";
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate({ to: "/login" }); return; }
-      const { data: profile } = await supabase.from("user_profiles").select("role, division_id").eq("id", session.user.id).maybeSingle();
-      if (!profile || (profile.role !== "super_admin" && profile.role !== "mentor")) { navigate({ to: "/login" }); return; }
-      setAdminRole(profile.role);
-      setAdminDivisionId(profile.division_id);
+      
+      if (!session && !isLocalAdmin) {
+        navigate({ to: "/login" });
+        return;
+      }
+
+      if (session) {
+        const { data: profile } = await supabase.from("user_profiles").select("role, division_id").eq("id", session.user.id).maybeSingle();
+        if (profile && (profile.role === "super_admin" || profile.role === "mentor")) {
+          setAdminRole(profile.role);
+          setAdminDivisionId(profile.division_id);
+        }
+      }
+      
       sessionStorage.setItem("admin_auth", "true");
-      sessionStorage.setItem("admin_role", profile.role);
+      setAdminRole((prev) => sessionStorage.getItem("admin_role") || prev || "super_admin");
     };
     checkAuth();
   }, [navigate]);
