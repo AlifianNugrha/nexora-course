@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadToSupabaseStorage } from "@/lib/supabase-storage";
 
@@ -377,66 +377,72 @@ export function useGameRoom(roomCode: string | null) {
   const [participants, setParticipants] = useState<GameParticipant[]>([]);
   const [votes, setVotes] = useState<GameVote[]>([]);
 
-  const fetchRealtimeRoomData = useCallback(async () => {
-    if (!roomCode) return;
-    const upper = roomCode.trim().toUpperCase();
-
-    try {
-      const [roomRes, partRes, voteRes] = await Promise.all([
-        supabase.from("game_rooms").select("*").eq("room_code", upper).maybeSingle(),
-        supabase.from("game_participants").select("*").eq("room_code", upper).order("score", { ascending: false }),
-        supabase.from("game_votes").select("*").eq("room_code", upper),
-      ]);
-
-      if (roomRes.data) {
-        setRoom(roomRes.data as GameRoom);
-      }
-      if (partRes.data) {
-        setParticipants(partRes.data as GameParticipant[]);
-      }
-      if (voteRes.data) {
-        setVotes(voteRes.data as GameVote[]);
-      }
-    } catch (err) {
-      console.error("Supabase Realtime fetch error:", err);
-    }
-  }, [roomCode]);
-
   useEffect(() => {
     if (!roomCode) return;
     const upper = roomCode.trim().toUpperCase();
+    let isActive = true;
 
-    fetchRealtimeRoomData();
+    // Fungsi fetch data dari Supabase (didefinisikan di dalam useEffect
+    // agar tidak menjadi dependency yang tidak stabil)
+    const fetchData = async () => {
+      if (!isActive) return;
+      try {
+        const [roomRes, partRes, voteRes] = await Promise.all([
+          supabase.from("game_rooms").select("*").eq("room_code", upper).maybeSingle(),
+          supabase.from("game_participants").select("*").eq("room_code", upper).order("score", { ascending: false }),
+          supabase.from("game_votes").select("*").eq("room_code", upper),
+        ]);
+
+        if (!isActive) return;
+
+        if (roomRes.data) setRoom(roomRes.data as GameRoom);
+        if (partRes.data) setParticipants(partRes.data as GameParticipant[]);
+        if (voteRes.data) setVotes(voteRes.data as GameVote[]);
+      } catch (err) {
+        console.error("Supabase Realtime fetch error:", err);
+      }
+    };
+
+    // Fetch awal saat join room
+    fetchData();
 
     // Supabase Realtime Channel Subscription
+    // Setiap perubahan di tabel (INSERT/UPDATE/DELETE) akan trigger fetchData()
+    // sehingga semua device mendapatkan state terbaru secara bersamaan
+    const channelName = `game_room_${upper}_${Date.now()}`;
     const channel = supabase
-      .channel(`game_room_${upper}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "game_rooms", filter: `room_code=eq.${upper}` },
-        () => fetchRealtimeRoomData()
+        () => { fetchData(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "game_participants", filter: `room_code=eq.${upper}` },
-        () => fetchRealtimeRoomData()
+        () => { fetchData(); }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "game_votes", filter: `room_code=eq.${upper}` },
-        () => fetchRealtimeRoomData()
+        () => { fetchData(); }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[GameRoom] Realtime channel status: ${status}`);
+        // Jika realtime berhasil terkoneksi, fetch ulang untuk pastikan data fresh
+        if (status === "SUBSCRIBED") fetchData();
+      });
 
-    // 1.5s Polling loop fallback
-    const interval = setInterval(fetchRealtimeRoomData, 1500);
+    // Polling fallback setiap 2 detik (safety net jika realtime lambat/gagal)
+    const interval = setInterval(fetchData, 2000);
 
     return () => {
+      isActive = false;
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [roomCode, fetchRealtimeRoomData]);
+  }, [roomCode]); // HANYA roomCode sebagai dependency — tidak ada fungsi di sini
 
-  return { room, participants, votes, refreshRoom: fetchRealtimeRoomData };
+  return { room, participants, votes };
 }
 
