@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { uploadToGoogleDrive } from "@/lib/google-drive";
 
 export type GameType = "prompt_vote" | "cerdas_cermat";
 
@@ -282,6 +283,11 @@ export async function joinRoomParticipant(participant: Omit<GameParticipant, "id
     console.error("Error joining participant:", err);
   }
   return null;
+}
+
+// Upload file gambar ke Google Drive (Service Account) dan kembalikan public URL
+export async function uploadArtworkFile(file: File, _roomCode: string, _userId: string): Promise<string | null> {
+  return await uploadToGoogleDrive(file);
 }
 
 export async function submitParticipantArtwork(roomCode: string, userId: string, imageUrl: string): Promise<void> {

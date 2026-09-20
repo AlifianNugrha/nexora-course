@@ -1,13 +1,13 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
-  Gamepad2, Sparkles, Trophy, ArrowLeft, Clock, Users, CheckCircle2, XCircle, KeyRound, Play
+  Gamepad2, Sparkles, Trophy, ArrowLeft, Clock, Users, CheckCircle2, XCircle, KeyRound, Play, Upload, ImageIcon, Loader2
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  MiniGame, useGameRoom, joinRoomParticipant, submitParticipantArtwork, castVote, updateRoomStatus, createRoom, getRoomByCode, fetchGamesFromSupabase
+  MiniGame, useGameRoom, joinRoomParticipant, submitParticipantArtwork, uploadArtworkFile, castVote, updateRoomStatus, createRoom, getRoomByCode, fetchGamesFromSupabase
 } from "@/hooks/use-mini-games";
 
 export const Route = createFileRoute("/game/$gameId")({
@@ -42,6 +42,12 @@ function GamePlayerPage() {
   // Game 1 State (AI Prompt)
   const [imageUrlInput, setImageUrlInput] = useState("");
   const [submittedImage, setSubmittedImage] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Game 2 State (Cerdas Cermat)
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -117,11 +123,63 @@ function GamePlayerPage() {
     }
   };
 
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Hanya file gambar yang diperbolehkan (JPG, PNG, WEBP, dll).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("Ukuran file maksimal 10MB.");
+      return;
+    }
+    setUploadError(null);
+    setUploadFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setUploadPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
   const handleSubmitArtwork = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!imageUrlInput.trim() || !roomCode) return;
-    await submitParticipantArtwork(roomCode, currentUserId, imageUrlInput.trim());
-    setSubmittedImage(imageUrlInput.trim());
+    if (!roomCode) return;
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      let finalImageUrl = "";
+
+      if (uploadFile) {
+        // Upload file ke Supabase Storage
+        const url = await uploadArtworkFile(uploadFile, roomCode, currentUserId);
+        if (!url) {
+          setUploadError("Gagal mengupload gambar. Pastikan koneksi internet stabil dan coba lagi.");
+          setIsUploading(false);
+          return;
+        }
+        finalImageUrl = url;
+      } else if (imageUrlInput.trim()) {
+        // Fallback: pakai URL langsung jika tidak ada file
+        finalImageUrl = imageUrlInput.trim();
+      } else {
+        setUploadError("Pilih file gambar atau masukkan URL gambar terlebih dahulu.");
+        setIsUploading(false);
+        return;
+      }
+
+      await submitParticipantArtwork(roomCode, currentUserId, finalImageUrl);
+      setSubmittedImage(finalImageUrl);
+    } catch (err) {
+      setUploadError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleVote = async (targetUserId: string, reaction: "bagus_sekali" | "absolute_cinema" | "kurang" | "jelek") => {
@@ -313,42 +371,129 @@ function GamePlayerPage() {
                     </p>
                   </div>
 
-                  <form onSubmit={handleSubmitArtwork} className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold text-foreground">Link URL Gambar Karya AI Anda</label>
-                      <input
-                        type="url"
-                        required
-                        value={imageUrlInput}
-                        onChange={(e) => setImageUrlInput(e.target.value)}
-                        placeholder="https://... (Paste URL gambar hasil AI)"
-                        className="mt-1 w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        Buka AI image generator pilihanmu, buat gambar sesuai instruksi di atas, lalu salin URL gambarnya ke sini.
-                      </p>
-                    </div>
-
-                    {imageUrlInput && (
+                  {/* Submitted success state */}
+                  {submittedImage ? (
+                    <div className="space-y-4 animate-fade-in">
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:bg-emerald-950/30 dark:border-emerald-800">
+                        <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500 mb-2" />
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Karya berhasil dikirim! ✅</p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Tunggu Admin memulai fase voting...</p>
+                      </div>
                       <div className="overflow-hidden rounded-2xl border border-border bg-slate-900 p-2">
-                        <img
-                          src={imageUrlInput}
-                          alt="Preview Karya"
-                          className="max-h-64 w-full object-contain rounded-xl"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop";
+                        <img src={submittedImage} alt="Karya Saya" className="max-h-64 w-full object-contain rounded-xl" />
+                      </div>
+                      <button
+                        onClick={() => { setSubmittedImage(null); setUploadFile(null); setUploadPreview(null); setImageUrlInput(""); }}
+                        className="w-full rounded-2xl border border-purple-300 bg-purple-50 px-6 py-3 text-sm font-bold text-purple-700 hover:bg-purple-100 dark:bg-purple-950/30 dark:text-purple-300 transition-all"
+                      >
+                        ✏️ Ganti Karya
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmitArtwork} className="space-y-4">
+                      {/* Drag & Drop Upload Area */}
+                      <div>
+                        <label className="text-xs font-bold text-foreground mb-2 block">
+                          Upload File Gambar Karya AI Kamu
+                        </label>
+
+                        {/* Hidden file input */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileSelect(file);
                           }}
                         />
-                      </div>
-                    )}
 
-                    <button
-                      type="submit"
-                      className="w-full rounded-2xl bg-purple-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg hover:bg-purple-700 transition-all active:scale-95"
-                    >
-                      {submittedImage ? "✓ Perbarui Karya Saya" : "Kirim Karya Saya ke Waiting Room"}
-                    </button>
-                  </form>
+                        {/* Drop Zone */}
+                        {!uploadPreview ? (
+                          <div
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                            onDragLeave={() => setIsDragging(false)}
+                            onDrop={handleDrop}
+                            className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 ${
+                              isDragging
+                                ? "border-purple-500 bg-purple-50 dark:bg-purple-950/30 scale-[1.01]"
+                                : "border-border hover:border-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
+                            }`}
+                          >
+                            <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${isDragging ? "bg-purple-600 text-white" : "bg-purple-100 text-purple-600 dark:bg-purple-950/50"}`}>
+                              <Upload className="h-7 w-7" />
+                            </div>
+                            <p className="text-sm font-bold text-foreground">
+                              {isDragging ? "Lepas untuk upload!" : "Klik atau drag & drop gambar di sini"}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Mendukung JPG, PNG, WEBP, GIF • Maks. 10MB
+                            </p>
+                          </div>
+                        ) : (
+                          /* Preview after file selected */
+                          <div className="relative overflow-hidden rounded-2xl border border-purple-300 bg-slate-900">
+                            <img src={uploadPreview} alt="Preview" className="max-h-64 w-full object-contain" />
+                            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-black/60 px-4 py-2 backdrop-blur-sm">
+                              <div className="flex items-center gap-2 text-white text-xs">
+                                <ImageIcon className="h-4 w-4" />
+                                <span className="truncate max-w-[180px]">{uploadFile?.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => { setUploadFile(null); setUploadPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                                className="rounded-lg bg-white/20 px-2.5 py-1 text-xs font-bold text-white hover:bg-white/30"
+                              >
+                                Ganti
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* OR divider + URL fallback */}
+                      <div className="flex items-center gap-3">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-xs font-bold text-muted-foreground">ATAU paste link URL</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+
+                      <input
+                        type="url"
+                        value={imageUrlInput}
+                        onChange={(e) => { setImageUrlInput(e.target.value); if (e.target.value) { setUploadFile(null); setUploadPreview(null); } }}
+                        placeholder="https://... (link gambar dari AI generator)"
+                        className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+
+                      {/* Error message */}
+                      {uploadError && (
+                        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs font-medium text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-300">
+                          ⚠️ {uploadError}
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={isUploading || (!uploadFile && !imageUrlInput.trim())}
+                        className="w-full rounded-2xl bg-purple-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg hover:bg-purple-700 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Mengupload karya...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Kirim Karya Saya
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 
@@ -367,15 +512,41 @@ function GamePlayerPage() {
                   <div className="grid gap-8 sm:grid-cols-2">
                     {participants.filter((p) => p.image_url).length === 0 ? (
                       <div className="col-span-full rounded-3xl border border-dashed border-border p-12 text-center text-xs text-muted-foreground">
-                        Belum ada karya terdaftar.
+                        Belum ada karya terdaftar. Tunggu peserta mengirim karya mereka.
                       </div>
                     ) : (
                       participants.filter((p) => p.image_url).map((p) => {
                         const targetVotes = votes.filter((v) => v.target_user_id === p.user_id);
                         return (
                           <div key={p.id} className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft space-y-4 p-4">
-                            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-900">
-                              <img src={p.image_url} alt={p.user_name} className="h-full w-full object-cover" />
+                            {/* Image with fallback */}
+                            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-slate-900 flex items-center justify-center">
+                              <img
+                                src={p.image_url}
+                                alt={`Karya oleh ${p.user_name}`}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  // Sembunyikan img dan tampilkan fallback
+                                  (e.target as HTMLImageElement).style.display = "none";
+                                  const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = "flex";
+                                }}
+                              />
+                              {/* Fallback jika gambar tidak bisa di-embed (CORS / hotlink protection) */}
+                              <div
+                                className="absolute inset-0 hidden flex-col items-center justify-center gap-3 bg-slate-900 text-center p-4"
+                              >
+                                <span className="text-3xl">🖼️</span>
+                                <p className="text-xs text-slate-300 font-medium">Gambar tidak bisa ditampilkan langsung.<br/>Klik tombol di bawah untuk melihat karya.</p>
+                                <a
+                                  href={p.image_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white hover:bg-purple-700 transition-all"
+                                >
+                                  🔗 Buka Gambar di Tab Baru
+                                </a>
+                              </div>
                               <div className="absolute top-3 left-3 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur-md">
                                 oleh {p.user_name}
                               </div>
@@ -498,7 +669,7 @@ function GamePlayerPage() {
           {/* ==================================================== */}
           {/* FINAL PODIUM & LEADERBOARD SHOWCASE (Status: finished)*/}
           {/* ==================================================== */}
-          {roomCode && (room?.status === "finished" || (room?.status === "voting" && game.game_type === "prompt_vote")) && (
+          {roomCode && room?.status === "finished" && (
             <div className="rounded-3xl border border-border bg-card p-6 sm:p-10 shadow-card animate-fade-in space-y-8">
               <div className="flex flex-col items-center text-center">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-700">
