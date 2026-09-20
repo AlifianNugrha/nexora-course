@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { uploadToGoogleDrive } from "@/lib/google-drive";
+import { uploadToSupabaseStorage } from "@/lib/supabase-storage";
 
 export type GameType = "prompt_vote" | "cerdas_cermat";
 
@@ -285,9 +285,9 @@ export async function joinRoomParticipant(participant: Omit<GameParticipant, "id
   return null;
 }
 
-// Upload file gambar ke Google Drive (Service Account) dan kembalikan public URL
-export async function uploadArtworkFile(file: File, _roomCode: string, _userId: string): Promise<string | null> {
-  return await uploadToGoogleDrive(file);
+// Upload file gambar ke Supabase Storage dan kembalikan public URL
+export async function uploadArtworkFile(file: File, roomCode: string, userId: string): Promise<string | null> {
+  return await uploadToSupabaseStorage(file, roomCode, userId);
 }
 
 export async function submitParticipantArtwork(roomCode: string, userId: string, imageUrl: string): Promise<void> {
